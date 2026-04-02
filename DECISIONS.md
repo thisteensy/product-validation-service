@@ -33,3 +33,9 @@
 **Rationale:** Music metadata is the backbone of the distribution chain and a primary source of industry-wide errors. Modelling it correctly from the start reduces downstream validation failures and royalty attribution errors. The three-layer abstraction of musical work, sound recording, and release informed the decision to include both ISRC (sound recording) and UPC (release) identifiers.
 **Reference:** "How Broken Metadata Affects the Music Industry" -- Soundcharts, Dmitry Pastukhov (December 2023). https://soundcharts.com/blog/music-metadata
 **Tradeoffs:** A richer domain model increases complexity. For this submission some fields are modelled but not deeply validated -- a production system would validate against external registries like ISRC and UPC databases.
+
+## ADR-007: JSON columns for product list fields
+**Decision:** Contributors, ownership splits, and DSP targets are stored as JSON columns in the products table rather than in separate normalized tables.
+**Rationale:** The QC service reads the full product for validation -- it doesn't query individual contributors or splits in isolation. JSON columns keep the schema simple and avoid joins that add no value for this use case.
+**Tradeoffs:** If FUGA were to extend this service to handle artist-level royalty accounting -- tracking payments to individual contributors rather than just to the label -- normalized tables would be strongly preferable. Querying "all products where Michael Jackson is a contributor" or "total ownership percentage for a given rights holder" is significantly harder with JSON columns. At that point a migration to normalized tables would be warranted.
+**Revisit when:** The service needs to query or aggregate data at the contributor or rights holder level.
