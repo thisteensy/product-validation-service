@@ -32,7 +32,7 @@ class ValidationServiceImplTest {
     }
 
     @Test
-    void shouldReturnValidResultWhenResponseContainsOnlyPasses() {
+    void shouldReturnValidResultWhenAllRulesPass() {
         Product product = ValidationBuilders.validProduct();
         when(ruleEngine.evaluate(any())).thenReturn(ValidationBuilders.passingRuleResults());
 
@@ -42,7 +42,7 @@ class ValidationServiceImplTest {
     }
 
     @Test
-    void shouldReturnReviewNeededWhenResponseContainsWarnings() {
+    void shouldRequireReviewWhenRulesProduceWarnings() {
         Product product = ValidationBuilders.validProduct();
         when(ruleEngine.evaluate(any())).thenReturn(ValidationBuilders.warningRuleResults());
 
@@ -52,7 +52,7 @@ class ValidationServiceImplTest {
     }
 
     @Test
-    void shouldReturnFailureWhenResponseContainsFailures() {
+    void shouldReturnFailureWhenRulesProduceBlockingResults() {
         Product product = ValidationBuilders.validProduct();
         when(ruleEngine.evaluate(any())).thenReturn(ValidationBuilders.failingRuleResults());
 

@@ -40,12 +40,33 @@ public class ProductRepositoryImpl implements ProductRepository {
 
     @Override
     public void deleteById(UUID id) {
-
+        jpaRepository.deleteById(id.toString());
     }
 
     @Override
     public Product save(Product product) {
-        return null;
+        try {
+            ProductEntity entity = new ProductEntity(
+                    product.getId().toString(),
+                    product.getUpc(),
+                    product.getIsrc(),
+                    product.getTitle(),
+                    objectMapper.writeValueAsString(product.getContributors()),
+                    product.getReleaseDate(),
+                    product.getGenre(),
+                    product.isExplicit(),
+                    product.getLanguage(),
+                    objectMapper.writeValueAsString(product.getOwnershipSplits()),
+                    product.getAudioFileUri(),
+                    product.getArtworkUri(),
+                    objectMapper.writeValueAsString(product.getDspTargets()),
+                    product.getStatus().name(),
+                    null
+            );
+            return toDomain(jpaRepository.save(entity));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize product: " + product.getId(), e);
+        }
     }
 
     @Override
