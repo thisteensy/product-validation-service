@@ -3,6 +3,7 @@ package com.productvalidation.application.rest;
 import com.productvalidation.domain.model.Product;
 import com.productvalidation.domain.model.ProductStatus;
 import com.productvalidation.domain.ports.ProductRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,11 +28,7 @@ public class ReviewController {
     @PatchMapping("/{id}/decision")
     public ResponseEntity<Void> submitDecision(
             @PathVariable UUID id,
-            @RequestBody ReviewDecisionDto decision) {
-
-        if (decision.getStatus() == null) {
-            return ResponseEntity.badRequest().build();
-        }
+            @Valid @RequestBody ReviewDecisionParams decision) {
 
         if (decision.getStatus() != ProductStatus.VALIDATED
                 && decision.getStatus() != ProductStatus.VALIDATION_FAILED) {

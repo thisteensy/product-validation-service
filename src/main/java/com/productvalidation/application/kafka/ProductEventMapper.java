@@ -22,21 +22,31 @@ public class ProductEventMapper {
         try {
             return new Product(
                     UUID.fromString(row.getId()),
-                    row.getUpc(),
-                    row.getIsrc(),
-                    row.getTitle(),
+                    row.getUpc() == null ? null : row.getUpc().strip().replace("-", "").replace(" ", ""),
+                    row.getIsrc() == null ? null : row.getIsrc().strip().toUpperCase(),
+                    row.getTitle() == null ? null : row.getTitle().strip(),
                     objectMapper.readValue(row.getContributors(),
-                            new TypeReference<List<ProductContributor>>() {}),
+                                    new TypeReference<List<ProductContributor>>() {}).stream()
+                            .map(c -> new ProductContributor(
+                                    c.getName() == null ? null : c.getName().strip(),
+                                    c.getRole()))
+                            .toList(),
                     LocalDate.ofEpochDay(row.getReleaseDate()),
-                    row.getGenre(),
+                    row.getGenre() == null ? null : row.getGenre().strip(),
                     row.getExplicit() != null && row.getExplicit() == 1,
-                    row.getLanguage(),
+                    row.getLanguage() == null ? null : row.getLanguage().strip().toLowerCase(),
                     objectMapper.readValue(row.getOwnershipSplits(),
-                            new TypeReference<List<OwnershipSplit>>() {}),
-                    row.getAudioFileUri(),
-                    row.getArtworkUri(),
+                                    new TypeReference<List<OwnershipSplit>>() {}).stream()
+                            .map(o -> new OwnershipSplit(
+                                    o.getRightsHolder() == null ? null : o.getRightsHolder().strip(),
+                                    o.getPercentage()))
+                            .toList(),
+                    row.getAudioFileUri() == null ? null : row.getAudioFileUri().strip(),
+                    row.getArtworkUri() == null ? null : row.getArtworkUri().strip(),
                     objectMapper.readValue(row.getDspTargets(),
-                            new TypeReference<List<String>>() {}),
+                                    new TypeReference<List<String>>() {}).stream()
+                            .map(t -> t == null ? null : t.strip().toLowerCase())
+                            .toList(),
                     ProductStatus.valueOf(row.getStatus())
             );
         } catch (Exception e) {

@@ -57,7 +57,7 @@ class ReviewControllerTest {
     @Test
     void shouldUpdateStatusWhenDecisionIsValidated() throws Exception {
         UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
+        ReviewDecisionParams decision = new ReviewDecisionParams();
         decision.setStatus(ProductStatus.VALIDATED);
         decision.setNotes("Looks good");
 
@@ -72,7 +72,7 @@ class ReviewControllerTest {
     @Test
     void shouldUpdateStatusWhenDecisionIsValidationFailed() throws Exception {
         UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
+        ReviewDecisionParams decision = new ReviewDecisionParams();
         decision.setStatus(ProductStatus.VALIDATION_FAILED);
         decision.setNotes("Missing ISRC");
 
@@ -87,7 +87,7 @@ class ReviewControllerTest {
     @Test
     void shouldRejectDecisionWhenStatusIsMissing() throws Exception {
         UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
+        ReviewDecisionParams decision = new ReviewDecisionParams();
 
         mockMvc.perform(patch("/reviews/{id}/decision", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +100,7 @@ class ReviewControllerTest {
     @Test
     void shouldRejectDecisionWhenStatusIsNotReviewable() throws Exception {
         UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
+        ReviewDecisionParams decision = new ReviewDecisionParams();
         decision.setStatus(ProductStatus.PUBLISHED);
 
         mockMvc.perform(patch("/reviews/{id}/decision", id)

@@ -2,9 +2,12 @@ package com.productvalidation.application.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productvalidation.ValidationBuilders;
+import com.productvalidation.domain.model.OwnershipSplit;
 import com.productvalidation.domain.model.Product;
+import com.productvalidation.domain.model.ProductContributor;
 import com.productvalidation.domain.model.ProductStatus;
 import com.productvalidation.domain.ports.ProductRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -12,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,14 +36,43 @@ class ProductControllerTest {
     @MockitoBean
     private ProductRepository productRepository;
 
+    @MockitoBean
+    private ProductMapper productMapper;
+
+    @BeforeEach
+    void setUp() {
+        when(productMapper.toProductFromProductParams(any()))
+                .thenAnswer(invocation -> {
+                    ProductParams params = invocation.getArgument(0);
+                    return Product.builder()
+                            .upc(params.getUpc())
+                            .isrc(params.getIsrc())
+                            .title(params.getTitle())
+                            .contributors(params.getContributors() == null ? null : params.getContributors().stream()
+                                    .map(c -> new ProductContributor(c.getName(), c.getRole()))
+                                    .toList())
+                            .releaseDate(params.getReleaseDate())
+                            .genre(params.getGenre())
+                            .explicit(params.isExplicit())
+                            .language(params.getLanguage())
+                            .ownershipSplits(params.getOwnershipSplits() == null ? null : params.getOwnershipSplits().stream()
+                                    .map(o -> new OwnershipSplit(o.getRightsHolder(), o.getPercentage()))
+                                    .toList())
+                            .audioFileUri(params.getAudioFileUri())
+                            .artworkUri(params.getArtworkUri())
+                            .dspTargets(params.getDspTargets())
+                            .build();
+                });
+        }
+
     @Test
     void shouldAssignNewIdAndSubmittedStatusWhenCreatingProduct() throws Exception {
-        Product product = ValidationBuilders.validProduct();
+        ProductParams params = ValidationBuilders.validProductParams();
         when(productRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/products")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(product)))
+                        .content(objectMapper.writeValueAsString(params)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.id").isNotEmpty());
@@ -91,12 +124,13 @@ class ProductControllerTest {
     @Test
     void shouldUpdateProductWhenIdExists() throws Exception {
         Product product = ValidationBuilders.validProduct();
+        ProductParams params = ValidationBuilders.validProductParams();
         when(productRepository.findById(product.getId()))
                 .thenReturn(Optional.of(product));
 
         mockMvc.perform(put("/products/{id}", product.getId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(product)))
+                        .content(objectMapper.writeValueAsString(params)))
                 .andExpect(status().isOk());
 
         verify(productRepository).update(any());
@@ -153,5 +187,70 @@ class ProductControllerTest {
                 .andExpect(status().isNotFound());
 
         verify(productRepository, never()).resubmit(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenTitleIsBlank() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setTitle("");
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenIsrcIsInvalid() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setIsrc("FAKE12345");
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenContributorsAreEmpty() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setContributors(List.of());
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenOwnershipSplitsAreEmpty() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setOwnershipSplits(List.of());
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenDspTargetsAreEmpty() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setDspTargets(List.of());
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
     }
 }

@@ -3,6 +3,7 @@ package com.productvalidation.application.rest;
 import com.productvalidation.domain.model.Product;
 import com.productvalidation.domain.model.ProductStatus;
 import com.productvalidation.domain.ports.ProductRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,13 +16,16 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final ProductMapper productMapper;
 
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository, ProductMapper productMapper) {
         this.productRepository = productRepository;
+        this.productMapper = productMapper;
     }
 
     @PostMapping
-    public ResponseEntity<Product> create(@RequestBody Product product) {
+    public ResponseEntity<Product> create(@Valid @RequestBody ProductParams productParams) {
+        Product product = productMapper.toProductFromProductParams(productParams);
         Product toSave = product.toBuilder()
                 .id(UUID.randomUUID())
                 .status(ProductStatus.SUBMITTED)
@@ -54,10 +58,12 @@ public class ProductController {
     @PutMapping("/{id}")
     public ResponseEntity<Void> update(
             @PathVariable UUID id,
-            @RequestBody Product product) {
+            @Valid @RequestBody ProductParams productParams) {
         if (productRepository.findById(id).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+        Product product = productMapper.toProductFromProductParams(productParams);
+
         productRepository.update(product.toBuilder().id(id).build());
         return ResponseEntity.ok().build();
     }
