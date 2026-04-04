@@ -31,10 +31,13 @@ flowchart TB
  subgraph Stream["Event Stream"]
         DEB["🔍 Debezium CDC"]
         T1["📨 product-events"]
+        T2["📨 track-events"]
   end
- subgraph QC["Validation Consumer"]
-        CONSUMER["⚙️ Validation Consumer"]
-        T2["☠️ product-dlq"]
+ subgraph QC["Validation Consumers"]
+        PCONSUMER["⚙️ Product Validation Consumer"]
+        TCONSUMER["⚙️ Track Validation Consumer"]
+        SCONSUMER["⚙️ Product Status Consumer"]
+        DLQ["☠️ product-dlq"]
   end
  subgraph Downstream["Downstream"]
         NOTIFY["🔔 Notification Stub"]
@@ -43,22 +46,31 @@ flowchart TB
   end
     LABEL_UI -- "CRUD + resubmit" --> PAPI
     PAPI -- writes --> DB
-    CONSUMER -- writes --> DB
+    PCONSUMER -- writes --> DB
+    TCONSUMER -- writes --> DB
+    SCONSUMER -- writes --> DB
     DB -- CDC --> DEB
     DEB == all domain events ==> T1
-    T1 -- SUBMITTED, RESUBMITTED --> CONSUMER
-    CONSUMER == fatal failure ==> T2
+    DEB == all domain events ==> T2
+    T1 -- SUBMITTED, RESUBMITTED --> PCONSUMER
+    PCONSUMER == fatal failure ==> DLQ
+    T2 -- PENDING --> TCONSUMER
+    TCONSUMER == fatal failure ==> DLQ
+    T2 -- status changes --> SCONSUMER
     T1 -- VALIDATED, VALIDATION_FAILED, PUBLISHED --> NOTIFY
     T1 -- PUBLISHED, TAKEN_DOWN --> DSP
     T1 -- NEEDS_REVIEW --> REVIEWER
 
      LABEL_UI:::external
      PAPI:::service
-     CONSUMER:::service
+     PCONSUMER:::service
+     TCONSUMER:::service
+     SCONSUMER:::service
      DB:::storage
      DEB:::infra
      T1:::topic
      T2:::topic
+     DLQ:::topic
      NOTIFY:::stub
      DSP:::stub
      REVIEWER:::stub
