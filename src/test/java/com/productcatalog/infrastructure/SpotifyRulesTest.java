@@ -16,14 +16,14 @@ public class SpotifyRulesTest {
 
     @Test
     void shouldPassWhenProductIsValid() {
-        List<RuleResult> results = spotifyRules.evaluate(validProduct());
+        List<RuleResult> results = spotifyRules.evaluateProduct(validProduct());
 
         assertTrue(results.stream().allMatch(r -> r.getSeverity() == RuleSeverity.PASS));
     }
 
     @Test
     void shouldFailWhenLanguageIsMissing() {
-        List<RuleResult> results = spotifyRules.evaluate(validProduct().toBuilder()
+        List<RuleResult> results = spotifyRules.evaluateProduct(validProduct().toBuilder()
                 .language(null)
                 .build());
 

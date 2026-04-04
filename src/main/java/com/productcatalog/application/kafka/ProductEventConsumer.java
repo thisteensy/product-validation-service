@@ -1,12 +1,14 @@
 package com.productcatalog.application.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.ProductStatus;
-import com.productcatalog.infrastructure.rules.RuleEngine;
-import com.productcatalog.infrastructure.rules.ValidationResult;
+import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.ports.ProductRepository;
+import com.productcatalog.infrastructure.rules.DspOrchestrator;
+import com.productcatalog.infrastructure.rules.ProductRules;
+import com.productcatalog.infrastructure.rules.RuleResult;
+import com.productcatalog.infrastructure.rules.RuleSeverity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,6 +17,9 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.UUID;
+
 @Component
 public class ProductEventConsumer {
 
@@ -22,17 +27,20 @@ public class ProductEventConsumer {
 
     private final ObjectMapper objectMapper;
     private final ProductEventMapper mapper;
-    private final RuleEngine ruleEngine;
+    private final ProductRules productRules;
     private final ProductRepository productRepository;
+    private final DspOrchestrator dspOrchestrator;
 
     public ProductEventConsumer(ObjectMapper objectMapper,
                                 ProductEventMapper mapper,
-                                RuleEngine ruleEngine,
-                                ProductRepository productRepository) {
+                                ProductRules productRules,
+                                ProductRepository productRepository,
+                                DspOrchestrator dspOrchestrator) {
         this.objectMapper = objectMapper;
         this.mapper = mapper;
-        this.ruleEngine = ruleEngine;
+        this.productRules = productRules;
         this.productRepository = productRepository;
+        this.dspOrchestrator = dspOrchestrator;
     }
 
     @KafkaListener(topics = "catalog.music_catalog.products", groupId = "product-validation")
@@ -60,10 +68,20 @@ public class ProductEventConsumer {
             }
 
             Product product = mapper.toProductFromProductRow(event.getPayload().getAfter());
-            ValidationResult result = new ValidationResult(product, ruleEngine.evaluate(product));
-            productRepository.updateStatus(product.getId(), result.getStatus(),null, ChangedByType.SYSTEM, null);
 
-            log.info("Validated product {} -- status: {}", product.getId(), result.getStatus());
+            List<RuleResult> results = productRules.evaluate(product);
+            boolean hasBlockingFailure = results.stream()
+                    .anyMatch(r -> r.getSeverity() == RuleSeverity.BLOCKING);
+
+            if (hasBlockingFailure) {
+                productRepository.updateStatus(product.getId(), ProductStatus.VALIDATION_FAILED,
+                        "Product-level validation failed", ChangedByType.SYSTEM, null);
+                log.info("Product {} failed product-level validation", product.getId());
+            } else {
+                productRepository.updateStatus(product.getId(), ProductStatus.AWAITING_TRACK_VALIDATION,
+                        null, ChangedByType.SYSTEM, null);
+                log.info("Product {} passed product-level validation -- awaiting track validation", product.getId());
+            }
 
         } catch (Exception e) {
             log.error("Failed to process product event -- routing to DLQ", e);

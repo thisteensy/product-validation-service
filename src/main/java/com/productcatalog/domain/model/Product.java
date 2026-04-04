@@ -54,6 +54,10 @@ public class Product {
     private Set<ProductStatus> allowedTransitions() {
         return switch (this.status) {
             case SUBMITTED, RESUBMITTED -> Set.of(
+                    ProductStatus.AWAITING_TRACK_VALIDATION,
+                    ProductStatus.VALIDATION_FAILED
+            );
+            case AWAITING_TRACK_VALIDATION -> Set.of(
                     ProductStatus.VALIDATED,
                     ProductStatus.VALIDATION_FAILED,
                     ProductStatus.NEEDS_REVIEW
