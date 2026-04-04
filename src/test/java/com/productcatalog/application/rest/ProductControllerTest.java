@@ -171,11 +171,13 @@ class ProductControllerTest {
                 .build();
         when(productRepository.findById(product.getId()))
                 .thenReturn(Optional.of(product));
+        doThrow(new IllegalStateException("Invalid status transition"))
+                .when(productRepository).resubmit(product.getId());
 
         mockMvc.perform(post("/products/{id}/resubmit", product.getId()))
                 .andExpect(status().isBadRequest());
 
-        verify(productRepository, never()).resubmit(any());
+        verify(productRepository).resubmit(product.getId());
     }
 
     @Test

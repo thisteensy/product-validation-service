@@ -1,14 +1,16 @@
 # Product Catalog Service
 
-An event-driven backend service that validates music product submissions against quality control rules before they are distributed to Digital Service Providers (DSPs) such as Spotify and Apple Music.
+An event-driven backend service for managing a music product catalog. When things happen in the catalog -- a product is submitted, validated, published, or taken down -- the rest of the system knows about it.
 
-Built for FUGA's QC team as a take-home engineering assessment.
+Built as a take-home engineering assessment for FUGA.
 
 ---
 
 ## Architecture
 
-This service sits at the heart of FUGA's content pipeline. Labels submit music products via the Product API, which writes to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of every committed write. The Validation Consumer picks up submitted products, runs them through a layered rule engine, and updates their status. A separate Review API handles the human review workflow for products that require manual intervention.
+This service is a product catalog API backed by an event-driven architecture. Labels submit music products via the REST API, which writes to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of every committed write. Downstream consumers subscribe to the event stream and react to the statuses relevant to their domain.
+
+The service includes a QC validation consumer as one example of a downstream consumer -- it picks up submitted products, runs them through a layered rule engine, and writes the validation outcome back to the catalog. Other consumers stub out notification and DSP delivery workflows.
 
 ```mermaid
 ---
@@ -16,31 +18,29 @@ config:
   layout: dagre
   theme: base
 ---
-flowchart LR
+flowchart TB
  subgraph Clients["Clients"]
         LABEL_UI["🎵 Label UI"]
-        RUI["🔍 Reviewer UI"]
   end
- subgraph Core["QC Service"]
+ subgraph Core["Product Catalog Service"]
         PAPI["📦 Product API"]
-        RAPI["🔍 Review API"]
-        CONSUMER["⚙️ Validation Consumer"]
         DB[("🗄️ MariaDB")]
   end
  subgraph Stream["Event Stream"]
         DEB["🔍 Debezium CDC"]
         T1["📨 product-events"]
+  end
+ subgraph QC["Validation Consumer"]
+        CONSUMER["⚙️ Validation Consumer"]
         T2["☠️ product-dlq"]
   end
  subgraph Downstream["Downstream"]
         NOTIFY["🔔 Notification Stub"]
         DSP["🌍 DSP Delivery Stub"]
+        REVIEWER["🔍 Reviewer Stub"]
   end
     LABEL_UI -- "CRUD + resubmit" --> PAPI
-    RUI -- "GET /reviews/pending" --> RAPI
-    RUI -- "PATCH /reviews/{id}/decision" --> RAPI
     PAPI -- writes --> DB
-    RAPI -- writes --> DB
     CONSUMER -- writes --> DB
     DB -- CDC --> DEB
     DEB == all domain events ==> T1
@@ -48,11 +48,10 @@ flowchart LR
     CONSUMER == fatal failure ==> T2
     T1 -- VALIDATED, VALIDATION_FAILED, PUBLISHED --> NOTIFY
     T1 -- PUBLISHED, TAKEN_DOWN --> DSP
+    T1 -- NEEDS_REVIEW --> REVIEWER
 
      LABEL_UI:::external
-     RUI:::external
      PAPI:::service
-     RAPI:::service
      CONSUMER:::service
      DB:::storage
      DEB:::infra
@@ -60,6 +59,7 @@ flowchart LR
      T2:::topic
      NOTIFY:::stub
      DSP:::stub
+     REVIEWER:::stub
     classDef external fill:#00F5D4,stroke:#00C4A9,color:#000
     classDef service fill:#F15BB5,stroke:#C1398A,color:#fff
     classDef infra fill:#F4769E,stroke:#C44870,color:#fff
@@ -69,12 +69,17 @@ flowchart LR
     style Clients fill:#fff,stroke:#7a3db8,color:#fff
     style Core fill:#fff,stroke:#7a3db8,color:#fff
     style Stream fill:#fff,stroke:#7a3db8,color:#fff
+    style QC fill:#fff,stroke:#7a3db8,color:#fff
     style Downstream fill:#fff,stroke:#7a3db8,color:#fff
 ```
 
 ### Key architectural decisions
 
+**Clean domain boundary.** The catalog domain contains only product lifecycle concepts -- `Product`, `ProductStatus`, contributors, ownership splits. QC validation logic lives entirely in the infrastructure layer as a consumer concern, not a catalog concern. The domain has no knowledge of rules, rule results, or validation outcomes.
+
 **Change Data Capture via Debezium** eliminates the dual write problem. The application writes only to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of committed writes. No event is ever lost due to a service crash between a DB write and a Kafka produce.
+
+**QC validation as a consumer.** The validation consumer is one of several consumers reacting to catalog events. It runs submitted products through an extensible rule engine and writes status updates back to the catalog via the repository. This is decoupled from the catalog API -- the API has no knowledge of validation logic.
 
 **DB-first over event sourcing.** A stream-first architecture was considered and rejected. Music catalog submission volumes do not justify the operational complexity of Kafka as a system of record. A well-indexed MariaDB handles the load trivially.
 
@@ -83,8 +88,6 @@ flowchart LR
 **Single service, three components.** The Kafka consumer, validation rule engine, Product API, and Review API live in one Spring Boot application. The Product API and Review API are intentionally separated into distinct controllers -- they serve different clients (labels and reviewers) with different workflows and URL namespaces. All components share the same domain data and belong to the QC bounded context. At higher volumes the validation consumer could be split into its own service for independent scaling -- this is captured in the decision record.
 
 **Sequential rule execution.** Rules run sequentially rather than in parallel. For in-memory checks the overhead of parallel streams outweighs the benefit. If rules require external I/O (checking against a copyright registry, for example), `parallelStream()` makes this a trivial change.
-
-**No Redis.** The reviewer UI is an internal tool used by a small team. Read load does not justify a cache. A status index on MariaDB is sufficient. Redis would be reconsidered if label-facing dashboard queries created measurable DB read pressure.
 
 Full decision records are documented in [DECISIONS.md](DECISIONS.md).
 
@@ -215,29 +218,6 @@ DELETE /products/{id}
 
 ---
 
-### Review API
-
-#### Get pending reviews
-```
-GET /reviews/pending
-```
-
-Returns all products with status `NEEDS_REVIEW`.
-
-#### Submit a review decision
-```
-PATCH /reviews/{id}/decision
-```
-```json
-{
-  "status": "VALIDATED",
-  "notes": "Release date verified with label -- intentional back-catalogue release"
-}
-```
-
-Valid status values: `VALIDATED`, `VALIDATION_FAILED`. Notes are required and will be prefixed with "Manual review: " in the database.
----
-
 ## Resilience
 
 **Dead Letter Queue.** Messages that cannot be processed after retries are routed to `product-dlq` with the full payload preserved for inspection and replay. `RuntimeException` is configured as non-retryable -- permanent failures (malformed events, invalid IDs) go directly to DLQ without retrying.
@@ -262,26 +242,24 @@ In production this service would be instrumented with distributed tracing (OpenT
 - **More DSP rule sets** -- Apple Music, Amazon Music, YouTube
 - **Rule configuration from database** -- allow non-engineers to add and modify rules without a deployment
 - **Parallel rule execution** if external I/O calls are introduced into the rule engine
-- **Split the service** -- separate the validation consumer from the reviewer API if volume requires independent scaling
+- **Split the service** -- separate the validation consumer from the product API if volume requires independent scaling
 - **Schema registry** -- Avro schemas for Kafka events rather than raw JSON
-- **Authentication** on the reviewer API -- currently unauthenticated, would integrate with an identity provider (Okta) in production
-
+- **Authentication** on the Product API -- currently unauthenticated, would integrate with an identity provider (Okta) in production, with label accounts scoped to their own catalog entries
 ---
 
 ## Project structure
 
 ```
-src/main/java/com/productvalidation/
+src/main/java/com/productcatalog/
 ├── application/
-│   ├── kafka/          -- Kafka consumer, event DTO, mapper
-│   └── rest/           -- Product API, Review API, request DTOs
+│   ├── kafka/          -- Validation consumer, downstream stubs, event DTO, mapper
+│   └── rest/           -- Product API, request DTOs, mapper
 ├── domain/
-│   ├── model/          -- Product, ValidationResult, RuleResult, enums
-│   ├── ports/          -- Repository, RuleEngine, ValidationService interfaces
-│   └── service/        -- ValidationServiceImpl
+│   ├── model/          -- Product, ProductStatus, contributors, ownership splits
+│   └── ports/          -- ProductRepository
 └── infrastructure/
     ├── messaging/      -- Kafka configuration, DLQ routing
     ├── persistence/    -- JPA entity, repository, adapter
-    └── rules/          -- UniversalRules, SpotifyRules, RuleEngineImpl
+    └── rules/          -- RuleEngine, ValidationResult, UniversalRules, SpotifyRules
 ```
 

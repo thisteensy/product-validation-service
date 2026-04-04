@@ -7,5 +7,6 @@ public enum ProductStatus {
     VALIDATION_FAILED,
     NEEDS_REVIEW,
     PUBLISHED,
-    TAKEN_DOWN
+    TAKEN_DOWN,
+    RETIRED
 }

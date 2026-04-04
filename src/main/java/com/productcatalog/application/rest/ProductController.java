@@ -72,9 +72,6 @@ public class ProductController {
     public ResponseEntity<Void> resubmit(@PathVariable UUID id) {
         return productRepository.findById(id)
                 .map(product -> {
-                    if (product.getStatus() != ProductStatus.VALIDATION_FAILED) {
-                        return ResponseEntity.badRequest().<Void>build();
-                    }
                     productRepository.resubmit(id);
                     return ResponseEntity.ok().<Void>build();
                 })

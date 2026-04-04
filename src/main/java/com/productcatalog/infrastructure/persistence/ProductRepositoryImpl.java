@@ -25,7 +25,9 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public void updateStatus(UUID id, ProductStatus status, String reviewerNotes) {
         jpaRepository.findById(id.toString()).ifPresent(entity -> {
-            entity.setStatus(status.name());
+            Product product = toDomain(entity);
+            product.transitionTo(status);
+            entity.setStatus(product.getStatus().name());
             entity.setReviewerNotes(reviewerNotes);
             jpaRepository.save(entity);
         });
@@ -112,10 +114,9 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public void resubmit(UUID id) {
         jpaRepository.findById(id.toString()).ifPresent(entity -> {
-            if (!entity.getStatus().equals(ProductStatus.VALIDATION_FAILED.name())) {
-                throw new IllegalStateException("Product cannot be resubmitted from status: " + entity.getStatus());
-            }
-            entity.setStatus(ProductStatus.RESUBMITTED.name());
+            Product product = toDomain(entity);
+            product.transitionTo(ProductStatus.RESUBMITTED);
+            entity.setStatus(product.getStatus().name());
             jpaRepository.save(entity);
         });
     }

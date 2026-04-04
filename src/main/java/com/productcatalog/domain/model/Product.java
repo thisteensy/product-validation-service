@@ -6,6 +6,7 @@ import lombok.Builder;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -30,5 +31,34 @@ public class Product {
 
     public void updateStatus(ProductStatus status) {
         this.status = status;
+    }
+
+    public void transitionTo(ProductStatus newStatus) {
+        Set<ProductStatus> allowed = allowedTransitions();
+        if (!allowed.contains(newStatus)) {
+            throw new IllegalStateException(
+                    "Invalid status transition from " + this.status + " to " + newStatus
+            );
+        }
+        this.status = newStatus;
+    }
+
+    private Set<ProductStatus> allowedTransitions() {
+        return switch (this.status) {
+            case SUBMITTED, RESUBMITTED -> Set.of(
+                    ProductStatus.VALIDATED,
+                    ProductStatus.VALIDATION_FAILED,
+                    ProductStatus.NEEDS_REVIEW
+            );
+            case VALIDATION_FAILED -> Set.of(ProductStatus.RESUBMITTED);
+            case NEEDS_REVIEW -> Set.of(
+                    ProductStatus.VALIDATED,
+                    ProductStatus.VALIDATION_FAILED
+            );
+            case VALIDATED -> Set.of(ProductStatus.PUBLISHED);
+            case PUBLISHED -> Set.of(ProductStatus.TAKEN_DOWN);
+            case TAKEN_DOWN -> Set.of(ProductStatus.PUBLISHED, ProductStatus.RETIRED);
+            case RETIRED -> Set.of();
+        };
     }
 }
