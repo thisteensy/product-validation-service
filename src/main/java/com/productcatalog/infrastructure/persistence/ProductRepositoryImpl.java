@@ -16,11 +16,16 @@ import java.util.UUID;
 public class ProductRepositoryImpl implements ProductRepository {
 
     private final ProductJpaRepository jpaRepository;
+    private final TrackJpaRepository trackJpaRepository;
     private final ObjectMapper objectMapper;
     private final ProductStatusHistoryRepository historyRepository;
 
-    public ProductRepositoryImpl(ProductJpaRepository jpaRepository, ObjectMapper objectMapper, ProductStatusHistoryRepository historyRepository) {
+    public ProductRepositoryImpl(ProductJpaRepository jpaRepository,
+                                 TrackJpaRepository trackJpaRepository,
+                                 ObjectMapper objectMapper,
+                                 ProductStatusHistoryRepository historyRepository) {
         this.jpaRepository = jpaRepository;
+        this.trackJpaRepository = trackJpaRepository;
         this.objectMapper = objectMapper;
         this.historyRepository = historyRepository;
     }
@@ -30,18 +35,11 @@ public class ProductRepositoryImpl implements ProductRepository {
         jpaRepository.findById(id.toString()).ifPresent(entity -> {
             Product product = toDomain(entity);
             ProductStatus previousStatus = product.getStatus();
-            product.transitionTo(status);
+            product.transitionTo(status, product.getTracks());
             entity.setStatus(product.getStatus().name());
             entity.setReviewerNotes(notes);
             jpaRepository.save(entity);
-            historyRepository.record(
-                    id,
-                    previousStatus,
-                    status,
-                    changedByType,
-                    changedById,
-                    notes
-            );
+            historyRepository.record(id, previousStatus, status, changedByType, changedById, notes);
         });
     }
 
@@ -63,21 +61,20 @@ public class ProductRepositoryImpl implements ProductRepository {
             ProductEntity entity = new ProductEntity(
                     product.getId().toString(),
                     product.getUpc(),
-                    product.getIsrc(),
                     product.getTitle(),
-                    objectMapper.writeValueAsString(product.getContributors()),
                     product.getReleaseDate(),
                     product.getGenre(),
-                    product.isExplicit(),
                     product.getLanguage(),
                     objectMapper.writeValueAsString(product.getOwnershipSplits()),
-                    product.getAudioFileUri(),
                     product.getArtworkUri(),
                     objectMapper.writeValueAsString(product.getDspTargets()),
                     product.getStatus().name(),
+                    null,
                     null
             );
-            return toDomain(jpaRepository.save(entity));
+            ProductEntity saved = jpaRepository.save(entity);
+            saveTracks(product.getTracks(), saved);
+            return toDomain(saved);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize product: " + product.getId(), e);
         }
@@ -98,29 +95,23 @@ public class ProductRepositoryImpl implements ProductRepository {
 
     @Override
     public void update(Product product) {
-        try {
-            jpaRepository.findById(product.getId().toString()).ifPresent(entity -> {
-                entity.setUpc(product.getUpc());
-                entity.setIsrc(product.getIsrc());
-                entity.setTitle(product.getTitle());
-                entity.setReleaseDate(product.getReleaseDate());
-                entity.setGenre(product.getGenre());
-                entity.setExplicit(product.isExplicit());
-                entity.setLanguage(product.getLanguage());
-                entity.setAudioFileUri(product.getAudioFileUri());
-                entity.setArtworkUri(product.getArtworkUri());
-                try {
-                    entity.setContributors(objectMapper.writeValueAsString(product.getContributors()));
-                    entity.setOwnershipSplits(objectMapper.writeValueAsString(product.getOwnershipSplits()));
-                    entity.setDspTargets(objectMapper.writeValueAsString(product.getDspTargets()));
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Failed to serialize product: " + product.getId(), e);
-                }
-                jpaRepository.save(entity);
-            });
-        } catch (RuntimeException e) {
-            throw e;
-        }
+        jpaRepository.findById(product.getId().toString()).ifPresent(entity -> {
+            entity.setUpc(product.getUpc());
+            entity.setTitle(product.getTitle());
+            entity.setReleaseDate(product.getReleaseDate());
+            entity.setGenre(product.getGenre());
+            entity.setLanguage(product.getLanguage());
+            entity.setArtworkUri(product.getArtworkUri());
+            try {
+                entity.setOwnershipSplits(objectMapper.writeValueAsString(product.getOwnershipSplits()));
+                entity.setDspTargets(objectMapper.writeValueAsString(product.getDspTargets()));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Failed to serialize product: " + product.getId(), e);
+            }
+            jpaRepository.save(entity);
+            trackJpaRepository.deleteAll(trackJpaRepository.findByProductId(product.getId().toString()));
+            saveTracks(product.getTracks(), entity);
+        });
     }
 
     @Override
@@ -128,36 +119,52 @@ public class ProductRepositoryImpl implements ProductRepository {
         jpaRepository.findById(id.toString()).ifPresent(entity -> {
             Product product = toDomain(entity);
             ProductStatus previousStatus = product.getStatus();
-            product.transitionTo(ProductStatus.RESUBMITTED);
+            product.transitionTo(ProductStatus.RESUBMITTED, product.getTracks());
             entity.setStatus(product.getStatus().name());
             jpaRepository.save(entity);
-            historyRepository.record(
-                    id,
-                    previousStatus,
-                    ProductStatus.RESUBMITTED,
-                    ChangedByType.LABEL,
-                    null,
-                    null
-            );
+            historyRepository.record(id, previousStatus, ProductStatus.RESUBMITTED, ChangedByType.LABEL, null, null);
         });
+    }
+
+    private void saveTracks(List<Track> tracks, ProductEntity productEntity) {
+        if (tracks == null) return;
+        try {
+            for (Track track : tracks) {
+                TrackEntity trackEntity = new TrackEntity(
+                        track.getId() != null ? track.getId().toString() : UUID.randomUUID().toString(),
+                        productEntity,
+                        track.getIsrc(),
+                        track.getTitle(),
+                        track.getTrackNumber(),
+                        track.getAudioFileUri(),
+                        track.getDuration(),
+                        track.isExplicit(),
+                        objectMapper.writeValueAsString(track.getContributors()),
+                        objectMapper.writeValueAsString(track.getOwnershipSplits()),
+                        track.getStatus().name()
+                );
+                trackJpaRepository.save(trackEntity);
+            }
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize track", e);
+        }
     }
 
     private Product toDomain(ProductEntity entity) {
         try {
+            List<Track> tracks = trackJpaRepository.findByProductId(entity.getId()).stream()
+                    .map(this::trackToDomain)
+                    .toList();
             return new Product(
                     UUID.fromString(entity.getId()),
                     entity.getUpc(),
-                    entity.getIsrc(),
                     entity.getTitle(),
-                    objectMapper.readValue(entity.getContributors(),
-                            new TypeReference<List<ProductContributor>>() {}),
+                    tracks,
                     entity.getReleaseDate(),
                     entity.getGenre(),
-                    entity.isExplicit(),
                     entity.getLanguage(),
                     objectMapper.readValue(entity.getOwnershipSplits(),
                             new TypeReference<List<OwnershipSplit>>() {}),
-                    entity.getAudioFileUri(),
                     entity.getArtworkUri(),
                     objectMapper.readValue(entity.getDspTargets(),
                             new TypeReference<List<String>>() {}),
@@ -165,6 +172,27 @@ public class ProductRepositoryImpl implements ProductRepository {
             );
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize product entity: " + entity.getId(), e);
+        }
+    }
+
+    private Track trackToDomain(TrackEntity entity) {
+        try {
+            return new Track(
+                    UUID.fromString(entity.getId()),
+                    entity.getIsrc(),
+                    entity.getTitle(),
+                    entity.getTrackNumber(),
+                    entity.getAudioFileUri(),
+                    entity.getDuration(),
+                    entity.isExplicit(),
+                    objectMapper.readValue(entity.getContributors(),
+                            new TypeReference<List<ProductContributor>>() {}),
+                    objectMapper.readValue(entity.getOwnershipSplits(),
+                            new TypeReference<List<OwnershipSplit>>() {}),
+                    TrackStatus.valueOf(entity.getStatus())
+            );
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to deserialize track entity: " + entity.getId(), e);
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.productcatalog.infrastructure;
 
+import com.productcatalog.ValidationBuilders;
+import com.productcatalog.domain.model.Track;
 import com.productcatalog.infrastructure.rules.RuleResult;
 import com.productcatalog.infrastructure.rules.RuleSeverity;
 import com.productcatalog.infrastructure.rules.UniversalRules;
@@ -45,9 +47,12 @@ public class UniversalRulesTest {
 
     @Test
     void shouldFailWhenReleaseDateIsMissingAndAudioFormatIsInvalid() {
+        Track invalidTrack = ValidationBuilders.validTrack().toBuilder()
+                .audioFileUri("s3://audio/thriller.aac")
+                .build();
         List<RuleResult> results = universalRules.evaluate(validProduct().toBuilder()
                 .releaseDate(null)
-                .audioFileUri("s3://audio/thriller.aac")
+                .tracks(List.of(invalidTrack))
                 .build());
 
         assertTrue(results.stream()

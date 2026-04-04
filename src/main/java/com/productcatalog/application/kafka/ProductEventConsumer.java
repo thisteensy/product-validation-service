@@ -59,7 +59,7 @@ public class ProductEventConsumer {
                 return;
             }
 
-            Product product = mapper.toDomain(event.getPayload().getAfter());
+            Product product = mapper.toProductFromProductRow(event.getPayload().getAfter());
             ValidationResult result = new ValidationResult(product, ruleEngine.evaluate(product));
             productRepository.updateStatus(product.getId(), result.getStatus(),null, ChangedByType.SYSTEM, null);
 

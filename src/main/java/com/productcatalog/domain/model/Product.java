@@ -1,8 +1,8 @@
 package com.productcatalog.domain.model;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
 import lombok.Builder;
+import lombok.Getter;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -16,24 +16,21 @@ public class Product {
 
     private final UUID id;
     private final String upc;
-    private final String isrc;
     private final String title;
-    private final List<ProductContributor> contributors;
+    private final List<Track> tracks;
     private final LocalDate releaseDate;
     private final String genre;
-    private final boolean explicit;
     private final String language;
     private final List<OwnershipSplit> ownershipSplits;
-    private final String audioFileUri;
     private final String artworkUri;
     private final List<String> dspTargets;
     private ProductStatus status;
 
-    public void updateStatus(ProductStatus status) {
-        this.status = status;
+    public boolean isExplicit() {
+        return tracks != null && tracks.stream().anyMatch(Track::isExplicit);
     }
 
-    public void transitionTo(ProductStatus newStatus) {
+    public void transitionTo(ProductStatus newStatus, List<Track> tracks) {
         Set<ProductStatus> allowed = allowedTransitions();
         if (!allowed.contains(newStatus)) {
             throw new IllegalStateException(
@@ -41,6 +38,17 @@ public class Product {
             );
         }
         this.status = newStatus;
+
+        if (tracks == null) return;
+
+        switch (newStatus) {
+            case TAKEN_DOWN -> tracks.forEach(t -> t.transitionTo(TrackStatus.TAKEN_DOWN));
+            case PUBLISHED -> tracks.stream()
+                    .filter(t -> t.getStatus() == TrackStatus.VALIDATED)
+                    .forEach(t -> t.transitionTo(TrackStatus.PUBLISHED));
+            case RETIRED -> tracks.forEach(t -> t.transitionTo(TrackStatus.RETIRED));
+            default -> {} // no cascade for other statuses
+        }
     }
 
     private Set<ProductStatus> allowedTransitions() {

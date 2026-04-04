@@ -18,37 +18,31 @@ public class ProductEventMapper {
         this.objectMapper = objectMapper;
     }
 
-    public Product toDomain(ProductEventDto.ProductRow row) {
+    public Product toProductFromProductRow(ProductEventDto.ProductRow row) {
         try {
-            return new Product(
-                    UUID.fromString(row.getId()),
-                    row.getUpc() == null ? null : row.getUpc().strip().replace("-", "").replace(" ", ""),
-                    row.getIsrc() == null ? null : row.getIsrc().strip().toUpperCase(),
-                    row.getTitle() == null ? null : row.getTitle().strip(),
-                    objectMapper.readValue(row.getContributors(),
-                                    new TypeReference<List<ProductContributor>>() {}).stream()
-                            .map(c -> new ProductContributor(
-                                    c.getName() == null ? null : c.getName().strip(),
-                                    c.getRole()))
-                            .toList(),
-                    LocalDate.ofEpochDay(row.getReleaseDate()),
-                    row.getGenre() == null ? null : row.getGenre().strip(),
-                    row.getExplicit() != null && row.getExplicit() == 1,
-                    row.getLanguage() == null ? null : row.getLanguage().strip().toLowerCase(),
-                    objectMapper.readValue(row.getOwnershipSplits(),
-                                    new TypeReference<List<OwnershipSplit>>() {}).stream()
-                            .map(o -> new OwnershipSplit(
-                                    o.getRightsHolder() == null ? null : o.getRightsHolder().strip(),
-                                    o.getPercentage()))
-                            .toList(),
-                    row.getAudioFileUri() == null ? null : row.getAudioFileUri().strip(),
-                    row.getArtworkUri() == null ? null : row.getArtworkUri().strip(),
-                    objectMapper.readValue(row.getDspTargets(),
-                                    new TypeReference<List<String>>() {}).stream()
-                            .map(t -> t == null ? null : t.strip().toLowerCase())
-                            .toList(),
-                    ProductStatus.valueOf(row.getStatus())
-            );
+            return Product.builder()
+                    .id(UUID.fromString(row.getId()))
+                    .upc(row.getUpc() == null ? null : row.getUpc().strip().replace("-", "").replace(" ", ""))
+                    .title(row.getTitle() == null ? null : row.getTitle().strip())
+                    .tracks(null)
+                    .releaseDate(LocalDate.ofEpochDay(row.getReleaseDate()))
+                    .genre(row.getGenre() == null ? null : row.getGenre().strip())
+                    .language(row.getLanguage() == null ? null : row.getLanguage().strip().toLowerCase())
+                    .ownershipSplits(row.getOwnershipSplits() == null ? null :
+                            objectMapper.readValue(row.getOwnershipSplits(),
+                                            new TypeReference<List<OwnershipSplit>>() {}).stream()
+                                    .map(o -> new OwnershipSplit(
+                                            o.getRightsHolder() == null ? null : o.getRightsHolder().strip(),
+                                            o.getPercentage()))
+                                    .toList())
+                    .artworkUri(row.getArtworkUri() == null ? null : row.getArtworkUri().strip())
+                    .dspTargets(row.getDspTargets() == null ? null :
+                            objectMapper.readValue(row.getDspTargets(),
+                                            new TypeReference<List<String>>() {}).stream()
+                                    .map(t -> t == null ? null : t.strip().toLowerCase())
+                                    .toList())
+                    .status(ProductStatus.valueOf(row.getStatus()))
+                    .build();
         } catch (Exception e) {
             throw new RuntimeException("Failed to map product event: " + row.getId(), e);
         }

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -21,14 +22,8 @@ public class ProductEntity {
     @Column(name = "upc")
     private String upc;
 
-    @Column(name = "isrc")
-    private String isrc;
-
     @Column(name = "title")
     private String title;
-
-    @Column(name = "contributors", columnDefinition = "JSON")
-    private String contributors;
 
     @Column(name = "release_date")
     private LocalDate releaseDate;
@@ -36,17 +31,11 @@ public class ProductEntity {
     @Column(name = "genre")
     private String genre;
 
-    @Column(name = "explicit")
-    private boolean explicit;
-
     @Column(name = "language")
     private String language;
 
     @Column(name = "ownership_splits", columnDefinition = "JSON")
     private String ownershipSplits;
-
-    @Column(name = "audio_file_uri")
-    private String audioFileUri;
 
     @Column(name = "artwork_uri")
     private String artworkUri;
@@ -59,4 +48,7 @@ public class ProductEntity {
 
     @Column(name = "reviewer_notes", columnDefinition = "TEXT")
     private String reviewerNotes;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TrackEntity> tracks;
 }

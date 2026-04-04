@@ -2,10 +2,7 @@ package com.productcatalog.application.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productcatalog.ValidationBuilders;
-import com.productcatalog.domain.model.OwnershipSplit;
-import com.productcatalog.domain.model.Product;
-import com.productcatalog.domain.model.ProductContributor;
-import com.productcatalog.domain.model.ProductStatus;
+import com.productcatalog.domain.model.*;
 import com.productcatalog.domain.ports.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,24 +43,36 @@ class ProductControllerTest {
                     ProductParams params = invocation.getArgument(0);
                     return Product.builder()
                             .upc(params.getUpc())
-                            .isrc(params.getIsrc())
                             .title(params.getTitle())
-                            .contributors(params.getContributors() == null ? null : params.getContributors().stream()
-                                    .map(c -> new ProductContributor(c.getName(), c.getRole()))
+                            .tracks(params.getTracks() == null ? null : params.getTracks().stream()
+                                    .map(t -> Track.builder()
+                                            .id(UUID.randomUUID())
+                                            .isrc(t.getIsrc())
+                                            .title(t.getTitle())
+                                            .trackNumber(t.getTrackNumber())
+                                            .audioFileUri(t.getAudioFileUri())
+                                            .duration(t.getDuration())
+                                            .explicit(t.isExplicit())
+                                            .contributors(t.getContributors() == null ? null : t.getContributors().stream()
+                                                    .map(c -> new ProductContributor(c.getName(), c.getRole()))
+                                                    .toList())
+                                            .ownershipSplits(t.getOwnershipSplits() == null ? null : t.getOwnershipSplits().stream()
+                                                    .map(o -> new OwnershipSplit(o.getRightsHolder(), o.getPercentage()))
+                                                    .toList())
+                                            .status(TrackStatus.PENDING)
+                                            .build())
                                     .toList())
                             .releaseDate(params.getReleaseDate())
                             .genre(params.getGenre())
-                            .explicit(params.isExplicit())
                             .language(params.getLanguage())
                             .ownershipSplits(params.getOwnershipSplits() == null ? null : params.getOwnershipSplits().stream()
                                     .map(o -> new OwnershipSplit(o.getRightsHolder(), o.getPercentage()))
                                     .toList())
-                            .audioFileUri(params.getAudioFileUri())
                             .artworkUri(params.getArtworkUri())
                             .dspTargets(params.getDspTargets())
                             .build();
                 });
-        }
+    }
 
     @Test
     void shouldAssignNewIdAndSubmittedStatusWhenCreatingProduct() throws Exception {
@@ -207,7 +216,7 @@ class ProductControllerTest {
     @Test
     void shouldRejectCreateWhenIsrcIsInvalid() throws Exception {
         ProductParams params = ValidationBuilders.validProductParams();
-        params.setIsrc("FAKE12345");
+        params.getTracks().get(0).setIsrc("FAKE12345");
 
         mockMvc.perform(post("/products")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -220,7 +229,7 @@ class ProductControllerTest {
     @Test
     void shouldRejectCreateWhenContributorsAreEmpty() throws Exception {
         ProductParams params = ValidationBuilders.validProductParams();
-        params.setContributors(List.of());
+        params.getTracks().get(0).setContributors(List.of());
 
         mockMvc.perform(post("/products")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -247,6 +256,19 @@ class ProductControllerTest {
     void shouldRejectCreateWhenDspTargetsAreEmpty() throws Exception {
         ProductParams params = ValidationBuilders.validProductParams();
         params.setDspTargets(List.of());
+
+        mockMvc.perform(post("/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectCreateWhenTracksAreEmpty() throws Exception {
+        ProductParams params = ValidationBuilders.validProductParams();
+        params.setTracks(List.of());
 
         mockMvc.perform(post("/products")
                         .contentType(MediaType.APPLICATION_JSON)
