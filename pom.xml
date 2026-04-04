@@ -8,8 +8,8 @@
 		<version>3.5.13</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>productvalidation</groupId>
-	<artifactId>product-validation-service</artifactId>
+	<groupId>productcatalog</groupId>
+	<artifactId>product-catalog-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name/>
 	<description/>
@@ -29,8 +29,8 @@
 	<properties>
 		<java.version>21</java.version>
 		<datasource-micrometer.version>1.4.0</datasource-micrometer.version>
-		<product_validation>catalog</product_validation>
-		<productvalidation>com.productvalidation</productvalidation>
+		<product_catalog>catalog</product_catalog>
+		<productcatalog>com.productcatalog</productcatalog>
 	</properties>
 	<dependencies>
 		<dependency>

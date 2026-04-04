@@ -1,4 +1,4 @@
-# Product Validation Service
+# Product Catalog Service
 
 An event-driven backend service that validates music product submissions against quality control rules before they are distributed to Digital Service Providers (DSPs) such as Spotify and Apple Music.
 
