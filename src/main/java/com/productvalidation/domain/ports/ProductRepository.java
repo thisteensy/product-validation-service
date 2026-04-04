@@ -10,9 +10,10 @@ import java.util.UUID;
 public interface ProductRepository {
     Product save(Product product);
     Optional<Product> findById(UUID id);
-
+    List<Product> findAll();
     void updateStatus(UUID id, ProductStatus status, String reviewerNotes);
-
     List<Product> findByStatus(ProductStatus status);
     void deleteById(UUID id);
+    void update(Product product);
+    void resubmit(UUID id);
 }

@@ -12,12 +12,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -68,84 +66,6 @@ class ProductControllerTest {
     }
 
     @Test
-    void shouldReturnPendingReviewsWhenProductsNeedReview() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByStatus(ProductStatus.NEEDS_REVIEW))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products/pending-review"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
-    }
-
-    @Test
-    void shouldReturnEmptyListWhenNoPendingReviews() throws Exception {
-        when(productRepository.findByStatus(ProductStatus.NEEDS_REVIEW))
-                .thenReturn(List.of());
-
-        mockMvc.perform(get("/products/pending-review"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
-    }
-
-    @Test
-    void shouldUpdateStatusWhenDecisionIsValidated() throws Exception {
-        UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
-        decision.setStatus(ProductStatus.VALIDATED);
-        decision.setNotes("Looks good");
-
-        mockMvc.perform(patch("/products/{id}/status", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(decision)))
-                .andExpect(status().isOk());
-
-        verify(productRepository).updateStatus(eq(id), eq(ProductStatus.VALIDATED), any());
-    }
-
-    @Test
-    void shouldUpdateStatusWhenDecisionIsValidationFailed() throws Exception {
-        UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
-        decision.setStatus(ProductStatus.VALIDATION_FAILED);
-        decision.setNotes("Missing ISRC");
-
-        mockMvc.perform(patch("/products/{id}/status", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(decision)))
-                .andExpect(status().isOk());
-
-        verify(productRepository).updateStatus(eq(id), eq(ProductStatus.VALIDATION_FAILED), any());
-    }
-
-    @Test
-    void shouldRejectDecisionWhenStatusIsMissing() throws Exception {
-        UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
-
-        mockMvc.perform(patch("/products/{id}/status", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(decision)))
-                .andExpect(status().isBadRequest());
-
-        verify(productRepository, never()).updateStatus(any(), any(), any());
-    }
-
-    @Test
-    void shouldRejectDecisionWhenStatusIsNotReviewable() throws Exception {
-        UUID id = UUID.randomUUID();
-        ReviewDecisionDto decision = new ReviewDecisionDto();
-        decision.setStatus(ProductStatus.PUBLISHED);
-
-        mockMvc.perform(patch("/products/{id}/status", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(decision)))
-                .andExpect(status().isBadRequest());
-
-        verify(productRepository, never()).updateStatus(any(), any(), any());
-    }
-
-    @Test
     void shouldDeleteProductWhenIdExists() throws Exception {
         Product product = ValidationBuilders.validProduct();
         when(productRepository.findById(product.getId()))
@@ -166,5 +86,72 @@ class ProductControllerTest {
                 .andExpect(status().isNotFound());
 
         verify(productRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void shouldUpdateProductWhenIdExists() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findById(product.getId()))
+                .thenReturn(Optional.of(product));
+
+        mockMvc.perform(put("/products/{id}", product.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isOk());
+
+        verify(productRepository).update(any());
+    }
+
+    @Test
+    void shouldReturn404WhenUpdatingNonexistentProduct() throws Exception {
+        UUID id = UUID.randomUUID();
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findById(id)).thenReturn(Optional.empty());
+
+        mockMvc.perform(put("/products/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isNotFound());
+
+        verify(productRepository, never()).update(any());
+    }
+
+    @Test
+    void shouldResubmitProductWhenStatusIsValidationFailed() throws Exception {
+        Product product = ValidationBuilders.validProduct().toBuilder()
+                .status(ProductStatus.VALIDATION_FAILED)
+                .build();
+        when(productRepository.findById(product.getId()))
+                .thenReturn(Optional.of(product));
+
+        mockMvc.perform(post("/products/{id}/resubmit", product.getId()))
+                .andExpect(status().isOk());
+
+        verify(productRepository).resubmit(product.getId());
+    }
+
+    @Test
+    void shouldRejectResubmitWhenStatusIsNotValidationFailed() throws Exception {
+        Product product = ValidationBuilders.validProduct().toBuilder()
+                .status(ProductStatus.SUBMITTED)
+                .build();
+        when(productRepository.findById(product.getId()))
+                .thenReturn(Optional.of(product));
+
+        mockMvc.perform(post("/products/{id}/resubmit", product.getId()))
+                .andExpect(status().isBadRequest());
+
+        verify(productRepository, never()).resubmit(any());
+    }
+
+    @Test
+    void shouldReturn404WhenResubmittingNonexistentProduct() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(productRepository.findById(id)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/products/{id}/resubmit", id))
+                .andExpect(status().isNotFound());
+
+        verify(productRepository, never()).resubmit(any());
     }
 }

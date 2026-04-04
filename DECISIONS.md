@@ -10,11 +10,12 @@
 **Rationale:** Music catalog submission volumes don't justify the operational complexity of Kafka as a system of record. A well-indexed MariaDB handles the load trivially.
 **Tradeoffs:** Dual write problem must be solved at the application layer where it arises.
 
-## ADR-003: Single service for validation pipeline and reviewer API
-**Decision:** The Kafka consumer, validation rule engine, and reviewer REST API live in a single Spring Boot application.
-**Rationale:** Both concerns belong to the QC bounded context and share the same domain data. Splitting them would add operational overhead -- separate deployments, separate monitoring, inter-service communication -- with no scaling benefit at FUGA's likely volume.
-**Tradeoffs:** Violates strict Single Responsibility Principle at the technical level. The validation pipeline and reviewer API have different scaling characteristics -- under high submission volume you might want to scale the consumer independently of the API. If volume grows significantly, splitting them would be the right move.
-**Revisit when:** Submission volume requires consumer scaling that would over-provision the API tier, or vice versa.
+## ADR-003: Single service for assessment purposes
+**Decision:** The Kafka consumer, validation rule engine, Product API, and Review API live in a single Spring Boot application.
+**Rationale:** Consolidating these components into one service was a pragmatic choice for this assessment. It reduces operational overhead for the reviewer -- a single deployment, a single `docker compose up`, a single application to run and understand.
+**In production:** These are distinct concerns that would likely live in separate services. The validation pipeline (consumer + rule engine) is a backend processing concern with different scaling characteristics than the label-facing Product API or the internal reviewer-facing Review API. In a production FUGA platform, these would be strong candidates for separate services with their own deployment boundaries, monitoring, and scaling policies.
+**Tradeoffs:** The single service boundary makes independent scaling impossible without a refactor. The controllers are already separated by concern, so extracting them into separate services would be a natural next step.
+**Revisit when:** This assessment becomes a production system.
 
 ## ADR-004: Redis caching strategy
 **Decision:** Redis is not used for caching in this implementation.
@@ -54,15 +55,22 @@
 **Revisit when:** Specific transient failure modes are identified that warrant retry before DLQ routing.
 **Operational considerations:** In production, a dedicated DLQ consumer would monitor `product-dlq` and alert via Slack webhook when messages arrive, enabling the team to inspect and replay failed messages promptly. This is outside the scope of this submission but would be a first priority before going to production.
 
-## ADR-010: Product CRUD API scoped to reviewer workflow
-**Decision:** The product CRUD API (`POST /products`, `GET /products/{id}`, `GET /products`, `PATCH /products/{id}/status`, `DELETE /products/{id}`) is exposed via a single `ProductController`. The review decision endpoint is modeled as a status update (`PATCH /products/{id}/status`) rather than a separate reviews resource.
-**Rationale:** In FUGA's domain, the reviewer UI is the primary consumer of product management operations -- reviewers need to inspect product details, correct metadata, and make disposition decisions. Modeling these as standard CRUD operations on the product resource rather than a separate reviews API keeps the surface area small and the resource model coherent. A product is the aggregate root; its status is an attribute of that resource, not a separate entity.
-**Tradeoffs:** `GET /products` without pagination defaults to filtering by status rather than returning the full catalog. Returning an unbounded result set would be irresponsible without pagination, and pagination is outside the scope of this submission. This is a known limitation.
-**Revisit when:** The API needs to serve clients beyond the reviewer UI -- for example a label-facing portal where labels manage their own submissions. At that point the access control model and resource scoping would need revisiting.
-**Operational considerations:** In production, the API would require authentication and authorization -- reviewers should only see products assigned to them or their queue, and labels should only see their own products. This submission omits auth entirely as it is outside the stated scope.
+## ADR-010: Separate controllers for label and reviewer workflows
+**Decision:** The product API (`POST /products`, `GET /products/{id}`, `GET /products`, `PUT /products/{id}`, `POST /products/{id}/resubmit`, `DELETE /products/{id}`) is served by `ProductController`. The reviewer API (`GET /reviews/pending`, `PATCH /reviews/{id}/decision`) is served by a separate `ReviewController`.
+**Rationale:** The Label UI and Reviewer UI are distinct clients with different workflows, different access patterns, and different URL namespaces. Serving them through a single controller conflates two separate concerns -- product lifecycle management and human review disposition -- that happen to share the same domain data. Separating them makes each controller's responsibility legible, makes the URL structure self-documenting, and makes each controller independently testable.
+**Tradeoffs:** Two controllers instead of one adds a small amount of structural overhead. Both controllers depend on the same `ProductRepository`, which means they share a data access layer -- this is intentional and appropriate since they operate on the same aggregate root.
+**Revisit when:** The label and reviewer workflows diverge significantly enough to warrant separate services, or access control requirements differ enough between the two clients to warrant separate deployment boundaries.
+**Operational considerations:** In production, both APIs would require authentication. The reviewer API would be restricted to internal FUGA staff. The label API would be restricted to authenticated label accounts with access scoped to their own catalog.
 
 ## ADR-011: Domain-layer structural validation with boundary sanitization
 **Decision:** Structural validation (ISRC format, title presence, ownership split integrity) lives in the domain service's pre-flight checks rather than exclusively at the API boundary. Sanitization (normalization of whitespace, casing, formatting) happens at both boundaries -- the REST controller and the Kafka consumer mapper -- before the domain receives input.
 **Rationale:** The domain cannot trust that all entry points have validated correctly. With multiple boundaries (REST API, Kafka consumer, and potentially future entry points), pushing all validation exclusively to the boundary risks invalid state reaching the domain if a new entry point is added without the correct checks. This is a belt-and-suspenders approach informed by financial systems engineering, where the cost of invalid domain state is high relative to the cost of redundant checks.
 **Tradeoffs:** Duplicates some checking between the boundary and the domain. The "parse, don't validate" school of thought would argue sanitization and structural checks belong exclusively at the boundary, with the type system carrying proof of validity downstream. That approach is cleaner in languages with expressive type systems (Haskell, Rust) but harder to enforce in Java without significant ceremony.
 **Revisit when:** A dedicated DTO layer with Bean Validation is introduced at the REST boundary, at which point the domain pre-flight checks could be reconsidered.
+
+## ADR-012: Explicit resubmission as a separate action
+**Decision:** Label resubmission is a two-step process. The label first corrects their product data via `PUT /products/{id}`, then explicitly triggers resubmission via `POST /products/{id}/resubmit`. The resubmit endpoint is a no-op if the product is not in `VALIDATION_FAILED` status.
+**Rationale:** Implicit resubmission -- where saving updated data automatically triggers the validation pipeline -- creates subtle failure modes. A label may save partial corrections multiple times before they are satisfied. Firing validation on incomplete data wastes pipeline capacity and produces noise in the reviewer queue. Making resubmission an explicit conscious action gives the label control over when they are ready, and gives the system a clean, unambiguous trigger for the `RESUBMITTED` status transition.
+**Tradeoffs:** Requires the label UI to surface two distinct actions -- save and resubmit -- which adds a small amount of UI complexity. This is preferable to the alternative of silent, unintended validation triggers.
+**Status guard:** The resubmit endpoint rejects requests with a `400` if the product is not in `VALIDATION_FAILED` status. This guard exists at both the controller and repository layers -- the controller returns a clean error to the client, the repository guard is a safety net against resubmission being triggered from other entry points in the future.
+**Revisit when:** The resubmission workflow needs to support partial corrections across multiple sessions, at which point a draft status and explicit submission flow would be worth considering.

@@ -38,36 +38,8 @@ public class ProductController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Product>> getByStatus(
-            @RequestParam(required = false) ProductStatus status) {
-        if (status != null) {
-            return ResponseEntity.ok(productRepository.findByStatus(status));
-        }
-        return ResponseEntity.ok(productRepository.findByStatus(ProductStatus.SUBMITTED));
-    }
-
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<Void> updateStatus(
-            @PathVariable UUID id,
-            @RequestBody ReviewDecisionDto decision) {
-
-        if (decision.getStatus() == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        if (decision.getStatus() != ProductStatus.VALIDATED
-                && decision.getStatus() != ProductStatus.VALIDATION_FAILED) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        String notes = "Manual review: " + (decision.getNotes() != null ? decision.getNotes() : "no notes provided");
-        productRepository.updateStatus(id, decision.getStatus(), notes);
-        return ResponseEntity.ok().build();
-    }
-
-    @GetMapping("/pending-review")
-    public ResponseEntity<List<Product>> getPendingReviews() {
-        return ResponseEntity.ok(productRepository.findByStatus(ProductStatus.NEEDS_REVIEW));
+    public ResponseEntity<List<Product>> getAll() {
+        return ResponseEntity.ok(productRepository.findAll());
     }
 
     @DeleteMapping("/{id}")
@@ -77,5 +49,29 @@ public class ProductController {
         }
         productRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> update(
+            @PathVariable UUID id,
+            @RequestBody Product product) {
+        if (productRepository.findById(id).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        productRepository.update(product.toBuilder().id(id).build());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/resubmit")
+    public ResponseEntity<Void> resubmit(@PathVariable UUID id) {
+        return productRepository.findById(id)
+                .map(product -> {
+                    if (product.getStatus() != ProductStatus.VALIDATION_FAILED) {
+                        return ResponseEntity.badRequest().<Void>build();
+                    }
+                    productRepository.resubmit(id);
+                    return ResponseEntity.ok().<Void>build();
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

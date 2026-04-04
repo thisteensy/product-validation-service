@@ -8,20 +8,68 @@ Built for FUGA's QC team as a take-home engineering assessment.
 
 ## Architecture
 
-This service sits at the heart of FUGA's content pipeline. When a label submits a music product, it enters the system via an upstream ingestion service (represented here by a label submission stub). The product validation service consumes those submissions, validates them against a layered set of rules, and updates their status accordingly.
+This service sits at the heart of FUGA's content pipeline. Labels submit music products via the Product API, which writes to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of every committed write. The Validation Consumer picks up submitted products, runs them through a layered rule engine, and updates their status. A separate Review API handles the human review workflow for products that require manual intervention.
 
 ```mermaid
-flowchart LR
-    STUB["🎲 Label Submission Stub"] -- writes submission --> DB[("🗄️ MariaDB")]
-    DB -- CDC --> DEB["🔍 Debezium CDC"]
-    DEB == all domain events ==> T1["📨 product-events"]
-    T1 -- SUBMITTED, RESUBMITTED --> QC["🎯 QC Service\n(Validation + Reviewer API)"]
-    QC -- VALIDATED, VALIDATION_FAILED, NEEDS_REVIEW --> DB
-    QC == fatal failure ==> T2["☠️ product-dlq"]
-    RUI["🔍 Reviewer UI"] -- review decision --> QC
-    RUI -- GET pending reviews --> QC
-    T1 -- VALIDATED, VALIDATION_FAILED, PUBLISHED --> NOTIFY["🔔 Notification Stub"]
-    T1 -- PUBLISHED, TAKEN_DOWN --> DSP["🌍 DSP Delivery Stub"]
+---
+config:
+  layout: dagre
+  theme: base
+---
+flowchart TB
+ subgraph Clients["Clients"]
+        LABEL_UI["🎵 Label UI"]
+        RUI["🔍 Reviewer UI"]
+  end
+ subgraph Core["QC Service"]
+        PAPI["📦 Product API"]
+        RAPI["🔍 Review API"]
+        CONSUMER["⚙️ Validation Consumer"]
+        DB[("🗄️ MariaDB")]
+  end
+ subgraph Stream["Event Stream"]
+        DEB["🔍 Debezium CDC"]
+        T1["📨 product-events"]
+        T2["☠️ product-dlq"]
+  end
+ subgraph Downstream["Downstream"]
+        NOTIFY["🔔 Notification Stub"]
+        DSP["🌍 DSP Delivery Stub"]
+  end
+    LABEL_UI -- "CRUD + resubmit" --> PAPI
+    RUI -- "GET /reviews/pending" --> RAPI
+    RUI -- "PATCH /reviews/{id}/decision" --> RAPI
+    PAPI -- writes --> DB
+    RAPI -- writes --> DB
+    CONSUMER -- writes --> DB
+    DB -- CDC --> DEB
+    DEB == all domain events ==> T1
+    T1 -- SUBMITTED, RESUBMITTED --> CONSUMER
+    CONSUMER == fatal failure ==> T2
+    T1 -- VALIDATED, VALIDATION_FAILED, PUBLISHED --> NOTIFY
+    T1 -- PUBLISHED, TAKEN_DOWN --> DSP
+
+     LABEL_UI:::external
+     RUI:::external
+     PAPI:::service
+     RAPI:::service
+     CONSUMER:::service
+     DB:::storage
+     DEB:::infra
+     T1:::topic
+     T2:::topic
+     NOTIFY:::stub
+     DSP:::stub
+    classDef external fill:#00F5D4,stroke:#00C4A9,color:#000
+    classDef service fill:#F15BB5,stroke:#C1398A,color:#fff
+    classDef infra fill:#F4769E,stroke:#C44870,color:#fff
+    classDef storage fill:#FEE440,stroke:#C9B400,color:#000
+    classDef topic fill:#CBDC65,stroke:#9AAD3A,color:#000
+    classDef stub fill:#00BBF9,stroke:#0090C9,color:#000
+    style Clients fill:#fff,stroke:#7a3db8,color:#fff
+    style Core fill:#fff,stroke:#7a3db8,color:#fff
+    style Stream fill:#fff,stroke:#7a3db8,color:#fff
+    style Downstream fill:#fff,stroke:#7a3db8,color:#fff
 ```
 
 ### Key architectural decisions
@@ -32,7 +80,7 @@ flowchart LR
 
 **Layered validation.** Validation happens in two stages: structural inspection in the domain layer (is the product well-formed?) and business rule evaluation in the infrastructure layer (does it meet platform standards?). Rules are separated into universal rules that apply to all DSPs and DSP-specific rules. The rule engine is extensible -- adding a new DSP requires only a new rule class and a config entry.
 
-**Single service for validation and reviewer API.** The Kafka consumer, validation rule engine, and reviewer REST API live in one Spring Boot application. Both concerns belong to the QC bounded context and share the same domain data. At higher volumes the consumer and API could be split -- this is captured in the decision record.
+**Single service, three components.** The Kafka consumer, validation rule engine, Product API, and Review API live in one Spring Boot application. The Product API and Review API are intentionally separated into distinct controllers -- they serve different clients (labels and reviewers) with different workflows and URL namespaces. All components share the same domain data and belong to the QC bounded context. At higher volumes the validation consumer could be split into its own service for independent scaling -- this is captured in the decision record.
 
 **Sequential rule execution.** Rules run sequentially rather than in parallel. For in-memory checks the overhead of parallel streams outweighs the benefit. If rules require external I/O (checking against a copyright registry, for example), `parallelStream()` makes this a trivial change.
 
@@ -127,20 +175,59 @@ Tests are unit tests using JUnit 5 and Mockito. Infrastructure dependencies are 
 
 ## API
 
-### Get pending reviews
+### Product API
 
+#### Create a product
+```
+POST /products
+```
+
+Creates a new product and sets its status to `SUBMITTED`, triggering the validation pipeline.
+
+#### Get a product
+```
+GET /products/{id}
+```
+
+#### Get all products
+```
+GET /products
+```
+
+#### Update a product
+```
+PUT /products/{id}
+```
+
+Replaces the full product record. Only meaningful when a product is in `VALIDATION_FAILED` status -- use to correct data before resubmitting.
+
+#### Resubmit a product
+```
+POST /products/{id}/resubmit
+```
+
+Explicitly triggers resubmission. Sets status to `RESUBMITTED` and kicks off the validation pipeline. Returns `400` if the product is not in `VALIDATION_FAILED` status.
+
+#### Delete a product
+```
+DELETE /products/{id}
+```
+
+---
+
+### Review API
+
+#### Get pending reviews
 ```
 GET /reviews/pending
 ```
 
 Returns all products with status `NEEDS_REVIEW`.
 
-### Submit a review decision
-
+#### Submit a review decision
 ```
-POST /reviews/{id}/decision
+PATCH /reviews/{id}/decision
 ```
-
 ```json
 {
   "status": "VALIDATED",
@@ -149,7 +236,6 @@ POST /reviews/{id}/decision
 ```
 
 Valid status values: `VALIDATED`, `VALIDATION_FAILED`. Notes are required and will be prefixed with "Manual review: " in the database.
-
 ---
 
 ## Resilience
@@ -171,6 +257,7 @@ In production this service would be instrumented with distributed tracing (OpenT
 ## What I would do with more time
 
 - **Integration tests** using Testcontainers for the persistence layer and Kafka consumer
+- **Status history tracking** -- a `product_status_history` table recording each status transition with timestamp and reason. Critical for the resubmission workflow -- ops teams need visibility into why a product failed and what changed between submissions. Debezium would pick this up automatically, so history tracking and event auditability come for free given the existing architecture.
 - **DLQ consumer** with Slack alerting for operational visibility
 - **More DSP rule sets** -- Apple Music, Amazon Music, YouTube
 - **Rule configuration from database** -- allow non-engineers to add and modify rules without a deployment
@@ -187,7 +274,7 @@ In production this service would be instrumented with distributed tracing (OpenT
 src/main/java/com/productvalidation/
 ├── application/
 │   ├── kafka/          -- Kafka consumer, event DTO, mapper
-│   └── rest/           -- Reviewer REST API, request DTOs
+│   └── rest/           -- Product API, Review API, request DTOs
 ├── domain/
 │   ├── model/          -- Product, ValidationResult, RuleResult, enums
 │   ├── ports/          -- Repository, RuleEngine, ValidationService interfaces
@@ -198,58 +285,3 @@ src/main/java/com/productvalidation/
     └── rules/          -- UniversalRules, SpotifyRules, RuleEngineImpl
 ```
 
-```mermaid
----
-config:
-  layout: dagre
-  theme: base
----
-flowchart TB
- subgraph Clients["Clients"]
-        LABEL_UI["🎵 Label UI"]
-        RUI["🔍 Reviewer UI"]
-  end
- subgraph Core["QC Service"]
-        QC["🎯 Validation + Product API"]
-        DB[("🗄️ MariaDB")]
-  end
- subgraph Stream["Event Stream"]
-        DEB["🔍 Debezium CDC"]
-        T1["📨 product-events"]
-        T2["☠️ product-dlq"]
-  end
- subgraph Downstream["Downstream"]
-        NOTIFY["🔔 Notification Stub"]
-        DSP["🌍 DSP Delivery Stub"]
-  end
-    LABEL_UI -- POST /products --> QC
-    RUI -- "GET /products/pending-review" --> QC
-    RUI -- PATCH /products/:id/status --> QC
-    QC -- writes --> DB
-    DB -- CDC --> DEB
-    DEB == all domain events ==> T1
-    T1 -- SUBMITTED, RESUBMITTED --> QC
-    QC == fatal failure ==> T2
-    T1 -- VALIDATED, VALIDATION_FAILED, PUBLISHED --> NOTIFY
-    T1 -- PUBLISHED, TAKEN_DOWN --> DSP
-
-     LABEL_UI:::external
-     RUI:::external
-     QC:::service
-     DB:::storage
-     DEB:::infra
-     T1:::topic
-     T2:::topic
-     NOTIFY:::stub
-     DSP:::stub
-    classDef external fill:#00F5D4,stroke:#00C4A9,color:#000
-    classDef service fill:#F15BB5,stroke:#C1398A,color:#fff
-    classDef infra fill:#F4769E,stroke:#C44870,color:#fff
-    classDef storage fill:#FEE440,stroke:#C9B400,color:#000
-    classDef topic fill:#CBDC65,stroke:#9AAD3A,color:#000
-    classDef stub fill:#00BBF9,stroke:#0090C9,color:#000
-    style Clients fill:#fff,stroke:#7a3db8,color:#fff
-    style Core fill:#fff,stroke:#7a3db8,color:#fff
-    style Stream fill:#fff,stroke:#7a3db8,color:#fff
-    style Downstream fill:#fff,stroke:#7a3db8,color:#fff
-```

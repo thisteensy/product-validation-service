@@ -75,6 +75,51 @@ public class ProductRepositoryImpl implements ProductRepository {
                 .map(this::toDomain);
     }
 
+    @Override
+    public List<Product> findAll() {
+        return jpaRepository.findAll().stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void update(Product product) {
+        try {
+            jpaRepository.findById(product.getId().toString()).ifPresent(entity -> {
+                entity.setUpc(product.getUpc());
+                entity.setIsrc(product.getIsrc());
+                entity.setTitle(product.getTitle());
+                entity.setReleaseDate(product.getReleaseDate());
+                entity.setGenre(product.getGenre());
+                entity.setExplicit(product.isExplicit());
+                entity.setLanguage(product.getLanguage());
+                entity.setAudioFileUri(product.getAudioFileUri());
+                entity.setArtworkUri(product.getArtworkUri());
+                try {
+                    entity.setContributors(objectMapper.writeValueAsString(product.getContributors()));
+                    entity.setOwnershipSplits(objectMapper.writeValueAsString(product.getOwnershipSplits()));
+                    entity.setDspTargets(objectMapper.writeValueAsString(product.getDspTargets()));
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException("Failed to serialize product: " + product.getId(), e);
+                }
+                jpaRepository.save(entity);
+            });
+        } catch (RuntimeException e) {
+            throw e;
+        }
+    }
+
+    @Override
+    public void resubmit(UUID id) {
+        jpaRepository.findById(id.toString()).ifPresent(entity -> {
+            if (!entity.getStatus().equals(ProductStatus.VALIDATION_FAILED.name())) {
+                throw new IllegalStateException("Product cannot be resubmitted from status: " + entity.getStatus());
+            }
+            entity.setStatus(ProductStatus.RESUBMITTED.name());
+            jpaRepository.save(entity);
+        });
+    }
+
     private Product toDomain(ProductEntity entity) {
         try {
             return new Product(
