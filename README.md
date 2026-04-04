@@ -83,11 +83,11 @@ flowchart TB
 
 **DB-first over event sourcing.** A stream-first architecture was considered and rejected. Music catalog submission volumes do not justify the operational complexity of Kafka as a system of record. A well-indexed MariaDB handles the load trivially.
 
-**Layered validation.** Validation happens in two stages: structural inspection in the domain layer (is the product well-formed?) and business rule evaluation in the infrastructure layer (does it meet platform standards?). Rules are separated into universal rules that apply to all DSPs and DSP-specific rules. The rule engine is extensible -- adding a new DSP requires only a new rule class and a config entry.
-
-**Single service, three components.** The Kafka consumer, validation rule engine, Product API, and Review API live in one Spring Boot application. The Product API and Review API are intentionally separated into distinct controllers -- they serve different clients (labels and reviewers) with different workflows and URL namespaces. All components share the same domain data and belong to the QC bounded context. At higher volumes the validation consumer could be split into its own service for independent scaling -- this is captured in the decision record.
+**Single service for assessment purposes.** The catalog API, validation consumer, and downstream stubs live in one Spring Boot application. In production these would be separate services -- the validation consumer and catalog API have different scaling characteristics and different deployment concerns. This consolidation is a pragmatic choice for this submission.
 
 **Sequential rule execution.** Rules run sequentially rather than in parallel. For in-memory checks the overhead of parallel streams outweighs the benefit. If rules require external I/O (checking against a copyright registry, for example), `parallelStream()` makes this a trivial change.
+
+**No Redis.** Read load on the catalog API does not justify a cache at reasonable submission volumes. A well-indexed MariaDB is sufficient. Redis would be reconsidered if label-facing status polling created measurable DB read pressure.
 
 Full decision records are documented in [DECISIONS.md](DECISIONS.md).
 
@@ -117,6 +117,7 @@ The model was informed by industry research into music metadata standards. See [
 | `NEEDS_REVIEW` | Flagged for human review due to warning-level rules |
 | `PUBLISHED` | Delivered to DSPs (handled downstream) |
 | `TAKEN_DOWN` | Removed from DSPs (handled downstream) |
+| `RETIRED` | Permanently removed from the catalog, terminal state |
 
 ---
 

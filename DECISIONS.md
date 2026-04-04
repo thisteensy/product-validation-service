@@ -13,16 +13,16 @@
 ## ADR-003: Single service for assessment purposes
 **Decision:** The Kafka consumer, validation rule engine, Product API, and Review API live in a single Spring Boot application.
 **Rationale:** Consolidating these components into one service was a pragmatic choice for this assessment. It reduces operational overhead for the reviewer -- a single deployment, a single `docker compose up`, a single application to run and understand.
-**In production:** These are distinct concerns that would likely live in separate services. The validation pipeline (consumer + rule engine) is a backend processing concern with different scaling characteristics than the label-facing Product API or the internal reviewer-facing Review API. In a production FUGA platform, these would be strong candidates for separate services with their own deployment boundaries, monitoring, and scaling policies.
+**In production:** These are distinct concerns that would likely live in separate services. The validation consumer is a backend processing concern with different scaling characteristics than the label-facing Product API. In a production FUGA platform, these would be strong candidates for separate services with their own deployment boundaries, monitoring, and scaling policies.
 **Tradeoffs:** The single service boundary makes independent scaling impossible without a refactor. The controllers are already separated by concern, so extracting them into separate services would be a natural next step.
 **Revisit when:** This assessment becomes a production system.
 
 ## ADR-004: Redis caching strategy
 **Decision:** Redis is not used for caching in this implementation.
-**Rationale:** The reviewer UI is an internal tool used by a small team of QC reviewers. Read load does not justify a cache at reasonable submission volumes. A well-indexed MariaDB query is sufficient.
-**Assumptions:** Moderate submission volume, small reviewer team. If volume grew significantly and DB read latency became a problem, Redis-backed caching of product status queries would be the first thing to reach for -- specifically caching by product ID with write-through invalidation driven by Debezium events.
-**Redis in the broader platform:** Redis has valid use cases outside this service -- session management for the reviewer UI if not delegated to an identity provider, rate limiting at the API boundary, and caching for high-volume label-facing dashboard queries owned by other teams.
-**Revisit when:** Label-facing status polling creates measurable DB read pressure, or reviewer team grows significantly.
+**Rationale:** Read load on the catalog API does not justify a cache at reasonable submission volumes. A well-indexed MariaDB query is sufficient.
+**Assumptions:** Moderate submission volume. If volume grew significantly and DB read latency became a problem, Redis-backed caching of product status queries would be the first thing to reach for -- specifically caching by product ID with write-through invalidation driven by Debezium events.
+**Redis in the broader platform:** Redis has valid use cases outside this service -- rate limiting at the API boundary, and caching for high-volume label-facing dashboard queries owned by other teams.
+**Revisit when:** Label-facing status polling creates measurable DB read pressure.
 
 ## ADR-005: Product domain model based on music industry metadata standards
 **Decision:** The Product model includes UPC, ISRC, contributor credits with roles, ownership splits, content references, DSP targets, release date, genre, explicit flag, and language.
@@ -55,22 +55,42 @@
 **Revisit when:** Specific transient failure modes are identified that warrant retry before DLQ routing.
 **Operational considerations:** In production, a dedicated DLQ consumer would monitor `product-dlq` and alert via Slack webhook when messages arrive, enabling the team to inspect and replay failed messages promptly. This is outside the scope of this submission but would be a first priority before going to production.
 
-## ADR-010: Separate controllers for label and reviewer workflows
-**Decision:** The product API (`POST /products`, `GET /products/{id}`, `GET /products`, `PUT /products/{id}`, `POST /products/{id}/resubmit`, `DELETE /products/{id}`) is served by `ProductController`. The reviewer API (`GET /reviews/pending`, `PATCH /reviews/{id}/decision`) is served by a separate `ReviewController`.
-**Rationale:** The Label UI and Reviewer UI are distinct clients with different workflows, different access patterns, and different URL namespaces. Serving them through a single controller conflates two separate concerns -- product lifecycle management and human review disposition -- that happen to share the same domain data. Separating them makes each controller's responsibility legible, makes the URL structure self-documenting, and makes each controller independently testable.
-**Tradeoffs:** Two controllers instead of one adds a small amount of structural overhead. Both controllers depend on the same `ProductRepository`, which means they share a data access layer -- this is intentional and appropriate since they operate on the same aggregate root.
-**Revisit when:** The label and reviewer workflows diverge significantly enough to warrant separate services, or access control requirements differ enough between the two clients to warrant separate deployment boundaries.
-**Operational considerations:** In production, both APIs would require authentication. The reviewer API would be restricted to internal FUGA staff. The label API would be restricted to authenticated label accounts with access scoped to their own catalog.
+## ADR-010: Single Product API controller
+**Decision:** All catalog operations (`POST /products`, `GET /products/{id}`, `GET /products`, `PUT /products/{id}`, `POST /products/{id}/resubmit`, `DELETE /products/{id}`) are served by a single `ProductController`. The human review workflow is represented by a `ReviewerStub` downstream consumer rather than a REST API.
+**Rationale:** The catalog API serves one client -- labels. A reviewer workflow in production would be a separate internal service with its own API, authentication, and deployment boundary. Modeling it as a stub consumer accurately reflects that separation of concerns without building a second service within this submission.
+**Tradeoffs:** The reviewer stub is minimal -- it logs and does nothing. A production reviewer workflow would require a full service with its own persistence, assignment logic, and notification system.
+**Revisit when:** The reviewer workflow needs to be built out as a real service.
+**Operational considerations:** In production, the Product API would require authentication via an identity provider (Okta), with label accounts scoped to their own catalog entries.
 
-## ADR-011: Boundary sanitization and domain-layer structural validation
-**Decision:** Sanitization (normalization of whitespace, casing, formatting) happens at both entry boundaries before the domain receives input -- in `ProductEventMapper` for Kafka events and in `ProductMapper` for REST requests. Structural validation of REST input is handled by Bean Validation (`@Valid`, `@NotBlank`, `@NotNull`, `@Pattern`) on `ProductParams` and `ReviewDecisionParams` at the controller boundary. Deeper structural validation (ISRC format, title presence, ownership split integrity) lives in the domain service as a pre-flight inspection before the rule engine runs.
+## ADR-011: Boundary sanitization and structural validation
+**Decision:** Sanitization (normalization of whitespace, casing, formatting) happens at both entry boundaries before the domain receives input -- in `ProductEventMapper` for Kafka events and in `ProductMapper` for REST requests. Structural validation of REST input is handled by Bean Validation (`@Valid`, `@NotBlank`, `@NotNull`, `@Pattern`) on `ProductParams` at the controller boundary.
 **Rationale:** Sanitization is part of parsing raw input into a domain object -- it happens inline during mapping, not as a separate pass. Bean Validation handles malformed REST requests early and returns clean 400 responses before the domain is involved. This is informed by the "parse, don't validate" principle described by Alexis King (https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/), applied pragmatically within Java's type system constraints.
-**Tradeoffs:** Java's type system cannot enforce at compile time that a `Product` has been sanitized before reaching the domain, unlike a language with more expressive types (Haskell, Rust). The separation between boundary sanitization and domain inspection is enforced by convention rather than the compiler. Bean Validation cannot express business-rule constraints such as allowlisted status values -- those remain as explicit checks in the controller.
-**Revisit when:** A dedicated value object or smart constructor approach is introduced so that invalid or unsanitized Product instances cannot be constructed -- at that point the domain inspection layer could be reconsidered.
+**Tradeoffs:** Java's type system cannot enforce at compile time that a `Product` has been sanitized before reaching the domain, unlike a language with more expressive types (Haskell, Rust). The separation between boundary sanitization and domain validation is enforced by convention rather than the compiler. Bean Validation cannot express business-rule constraints such as valid status transitions -- those are enforced by the domain model via `Product.transitionTo()`, with a global exception handler translating `IllegalStateException` to HTTP 400 responses.
+**Revisit when:** A dedicated value object or smart constructor approach is introduced so that invalid or unsanitized `Product` instances cannot be constructed -- at that point the boundary validation layer could be reconsidered.
 
 ## ADR-012: Explicit resubmission as a separate action
 **Decision:** Label resubmission is a two-step process. The label first corrects their product data via `PUT /products/{id}`, then explicitly triggers resubmission via `POST /products/{id}/resubmit`. The resubmit endpoint is a no-op if the product is not in `VALIDATION_FAILED` status.
 **Rationale:** Implicit resubmission -- where saving updated data automatically triggers the validation pipeline -- creates subtle failure modes. A label may save partial corrections multiple times before they are satisfied. Firing validation on incomplete data wastes pipeline capacity and produces noise in the reviewer queue. Making resubmission an explicit conscious action gives the label control over when they are ready, and gives the system a clean, unambiguous trigger for the `RESUBMITTED` status transition.
 **Tradeoffs:** Requires the label UI to surface two distinct actions -- save and resubmit -- which adds a small amount of UI complexity. This is preferable to the alternative of silent, unintended validation triggers.
-**Status guard:** The resubmit endpoint rejects requests with a `400` if the product is not in `VALIDATION_FAILED` status. This guard exists at both the controller and repository layers -- the controller returns a clean error to the client, the repository guard is a safety net against resubmission being triggered from other entry points in the future.
+**Status guard:** The resubmit endpoint enforces the transition via `Product.transitionTo()` in the repository layer. Invalid transitions throw `IllegalStateException`, which is caught by the global exception handler and returned as a 400. This is consistent with how all status transitions are enforced across the system.
 **Revisit when:** The resubmission workflow needs to support partial corrections across multiple sessions, at which point a draft status and explicit submission flow would be worth considering.
+
+## ADR-013: Status transition enforcement on the domain model
+**Decision:** Valid status transitions are enforced by `Product.transitionTo(ProductStatus)`. The method consults an allowlist of valid next states for the current status and throws `IllegalStateException` if the transition is invalid.
+**Rationale:** Status transition rules are domain invariants -- they belong on the aggregate root, not in controllers or repository implementations. Centralizing transition logic on `Product` means the rules are enforced regardless of which entry point triggers the transition. A global `@RestControllerAdvice` translates `IllegalStateException` to HTTP 400 responses at the API boundary.
+**Valid transitions:**
+- `SUBMITTED`, `RESUBMITTED` → `VALIDATED`, `VALIDATION_FAILED`, `NEEDS_REVIEW`
+- `VALIDATION_FAILED` → `RESUBMITTED`
+- `NEEDS_REVIEW` → `VALIDATED`, `VALIDATION_FAILED`
+- `VALIDATED` → `PUBLISHED`
+- `PUBLISHED` → `TAKEN_DOWN`
+- `TAKEN_DOWN` → `PUBLISHED`, `RETIRED`
+- `RETIRED` → terminal, no further transitions
+  **Tradeoffs:** Enforcing transitions in the domain requires loading the product from the database before every status update, adding one read per write. This is acceptable at catalog scale.
+  **Revisit when:** Transition rules become more complex or context-dependent, at which point a formal state machine library (Spring Statemachine) would be worth considering.
+
+## ADR-014: QC validation logic in infrastructure layer
+**Decision:** Rule engine, rule results, validation results, and rule severity live in `infrastructure/rules`, not in `domain/`. The Kafka consumer depends on the rule engine directly.
+**Rationale:** QC validation is a consumer concern, not a catalog concern. The catalog domain knows only that a product has a status -- it has no knowledge of how that status was determined. Placing validation logic in the infrastructure layer reflects this boundary accurately. The domain remains pure: `Product`, `ProductStatus`, contributors, ownership splits.
+**Tradeoffs:** The rule engine is an infrastructure concern that happens to write back to the catalog via the repository. This creates a dependency from infrastructure to domain, which is the correct direction in hexagonal architecture.
+**Revisit when:** The validation consumer is extracted into its own service, at which point the rule engine and its supporting types would move with it entirely.
