@@ -8,9 +8,11 @@ Built as a take-home engineering assessment for FUGA.
 
 ## Architecture
 
-This service is a product catalog API backed by an event-driven architecture. Labels submit music products via the REST API, which writes to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of every committed write. Downstream consumers subscribe to the event stream and react to the statuses relevant to their domain.
+This service is a product catalog API backed by an event-driven architecture. Labels submit music products with their tracks via the REST API, which writes to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of every committed write.
 
-The service includes a QC validation consumer as one example of a downstream consumer -- it picks up submitted products, runs them through a layered rule engine, and writes the validation outcome back to the catalog. Other consumers stub out notification and DSP delivery workflows.
+Validation is split into two independent pipelines. The Product Validation Consumer validates release-level fields when a product is submitted or resubmitted. On pass it sets the product to `AWAITING_TRACK_VALIDATION` and track validation begins. The Track Validation Consumer validates each track independently against universal and DSP-specific rules. The Product Status Consumer listens for track status changes and recomputes the product status once all tracks have been evaluated.
+
+Other consumers stub out notification, DSP delivery, and reviewer routing workflows.
 
 ```mermaid
 ---
@@ -77,9 +79,11 @@ flowchart TB
 
 **Clean domain boundary.** The catalog domain contains only product lifecycle concepts -- `Product`, `ProductStatus`, contributors, ownership splits. QC validation logic lives entirely in the infrastructure layer as a consumer concern, not a catalog concern. The domain has no knowledge of rules, rule results, or validation outcomes.
 
+**Track as a first-class domain concept.** A `Product` is a release container. A `Track` is a sound recording within that release. ISRC, audio file URI, duration, explicit flag, contributor credits, and ownership splits live on `Track`. UPC, artwork, DSP targets, and release-level ownership splits live on `Product`. This reflects how the music industry actually models releases and recordings, and enables track-level validation, failure, and resubmission independently of the parent release.
+
 **Change Data Capture via Debezium** eliminates the dual write problem. The application writes only to MariaDB. Debezium tails the binary log and produces domain events to Kafka as a guaranteed side effect of committed writes. No event is ever lost due to a service crash between a DB write and a Kafka produce.
 
-**QC validation as a consumer.** The validation consumer is one of several consumers reacting to catalog events. It runs submitted products through an extensible rule engine and writes status updates back to the catalog via the repository. This is decoupled from the catalog API -- the API has no knowledge of validation logic.
+**Track-level validation pipeline.** Validation is split into two independent pipelines. The Product Validation Consumer validates release-level fields and writes `AWAITING_TRACK_VALIDATION` on pass. The Track Validation Consumer validates each track independently against universal and DSP-specific rules and writes the track's status. The Product Status Consumer recomputes the product status from all track statuses once no tracks remain in `PENDING`. This means a single failing track does not block the entire release -- labels can fix and resubmit individual tracks without touching the others.
 
 **DB-first over event sourcing.** A stream-first architecture was considered and rejected. Music catalog submission volumes do not justify the operational complexity of Kafka as a system of record. A well-indexed MariaDB handles the load trivially.
 
@@ -97,29 +101,51 @@ Full decision records are documented in [DECISIONS.md](DECISIONS.md).
 
 ## Domain model
 
-A `Product` represents a music release in FUGA's catalog. It carries:
+A `Product` represents a music release in FUGA's catalog. It carries release-level metadata:
 
-- **Identifiers:** UPC (release), ISRC (sound recording)
-- **Descriptive metadata:** title, genre, language, release date, explicit flag
-- **Contributors:** a list of named contributors with roles (MAIN_ARTIST, FEATURED_ARTIST, PRODUCER, etc.)
-- **Ownership splits:** rights holders and their percentage of ownership, which must sum to 100%
-- **Content references:** audio file URI and artwork URI
+- **Identifiers:** UPC (release barcode)
+- **Descriptive metadata:** title, genre, language, release date
+- **Content references:** artwork URI
 - **DSP targets:** which platforms the product should be delivered to
+- **Ownership splits:** rights holders and their percentage of ownership, which must sum to 100%
 
-The model was informed by industry research into music metadata standards. See [ADR-006](DECISIONS.md) for the reference.
+A `Track` represents a sound recording within a release. It carries recording-level metadata:
 
-### Validation outcomes
+- **Identifiers:** ISRC (sound recording code)
+- **Descriptive metadata:** title, track number, duration, explicit flag
+- **Content references:** audio file URI
+- **Contributors:** named contributors with roles (MAIN_ARTIST, FEATURED_ARTIST, PRODUCER, etc.)
+- **Ownership splits:** rights holders and their percentage of ownership, which must sum to 100%
+
+A product's `explicit` flag is derived -- a release is explicit if any of its tracks are explicit.
+
+The model was informed by industry research into music metadata standards. See [ADR-005](DECISIONS.md) for the reference.
+
+### Product status lifecycle
 
 | Status | Meaning |
 |---|---|
-| `SUBMITTED` | Product received, awaiting validation |
-| `RESUBMITTED` | Label resubmitted after a rejection |
-| `VALIDATED` | Passed all rules, ready for distribution |
-| `VALIDATION_FAILED` | Failed one or more blocking rules, returned to label |
-| `NEEDS_REVIEW` | Flagged for human review due to warning-level rules |
+| `SUBMITTED` | Product received, awaiting product-level validation |
+| `RESUBMITTED` | Label resubmitted after a product-level rejection |
+| `AWAITING_TRACK_VALIDATION` | Product-level validation passed, tracks being validated |
+| `VALIDATION_FAILED` | Product-level or one or more track validations failed |
+| `NEEDS_REVIEW` | One or more tracks flagged for human review, none failed |
+| `VALIDATED` | All validations passed, ready for distribution |
 | `PUBLISHED` | Delivered to DSPs (handled downstream) |
 | `TAKEN_DOWN` | Removed from DSPs (handled downstream) |
 | `RETIRED` | Permanently removed from the catalog, terminal state |
+
+### Track status lifecycle
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | Track received, awaiting validation |
+| `VALIDATED` | Passed all rules |
+| `VALIDATION_FAILED` | Failed one or more blocking rules |
+| `NEEDS_REVIEW` | Flagged for human review due to warning-level rules |
+| `PUBLISHED` | Delivered to DSPs |
+| `TAKEN_DOWN` | Removed from DSPs |
+| `RETIRED` | Permanently removed, terminal state |
 
 ---
 
@@ -244,24 +270,25 @@ In production this service would be instrumented with distributed tracing (OpenT
 - **More DSP rule sets** -- Apple Music, Amazon Music, YouTube
 - **Rule configuration from database** -- allow non-engineers to add and modify rules without a deployment
 - **Parallel rule execution** if external I/O calls are introduced into the rule engine
-- **Split the service** -- separate the validation consumer from the product API if volume requires independent scaling
+- **Split the service** -- the product catalog API, validation pipeline, and DSP rule engine are three distinct bounded contexts that would each be a separate service in production
+- **Compacted Kafka topic for validation state** -- replace the DB-backed product status derivation with a compacted topic keyed by product ID, using tombstone records to clean up once validation completes. See ADR-019 for details.
+- **Track status history** -- extend the `product_status_history` pattern to tracks, recording every track status transition with actor type, identity, and timestamp
 - **Schema registry** -- Avro schemas for Kafka events rather than raw JSON
 - **Authentication** on the Product API -- currently unauthenticated, would integrate with an identity provider (Okta) in production, with label accounts scoped to their own catalog entries
 ---
 
 ## Project structure
-
 ```
 src/main/java/com/productcatalog/
 ├── application/
-│   ├── kafka/          -- Validation consumer, downstream stubs, event DTO, mapper
-│   └── rest/           -- Product API, request DTOs, mapper
+│   ├── kafka/          -- Product, track, and status consumers; downstream stubs; event DTOs; mappers
+│   └── rest/           -- Product API, request DTOs, mapper, global exception handler
 ├── domain/
-│   ├── model/          -- Product, ProductStatus, contributors, ownership splits
-│   └── ports/          -- ProductRepository
+│   ├── model/          -- Product, Track, status enums, contributors, ownership splits
+│   └── ports/          -- ProductRepository, TrackRepository, ProductStatusHistoryRepository
 └── infrastructure/
     ├── messaging/      -- Kafka configuration, DLQ routing
-    ├── persistence/    -- JPA entity, repository, adapter
-    └── rules/          -- RuleEngine, ValidationResult, UniversalRules, SpotifyRules
+    ├── persistence/    -- JPA entities, repositories, adapters
+    └── rules/          -- ProductRules, TrackRules, DspOrchestrator, SpotifyRules, ValidationResult
 ```
 

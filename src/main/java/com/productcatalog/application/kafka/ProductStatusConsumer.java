@@ -50,27 +50,41 @@ public class ProductStatusConsumer {
                 return;
             }
 
-            String status = event.getPayload().getAfter().getStatus();
-            if (TrackStatus.PENDING.name().equals(status)) {
+            String trackStatus = event.getPayload().getAfter().getStatus();
+            if (TrackStatus.PENDING.name().equals(trackStatus)) {
                 return;
             }
 
             UUID productId = UUID.fromString(event.getPayload().getAfter().getProductId());
 
             productRepository.findById(productId).ifPresent(product -> {
-                if (product.getStatus() != ProductStatus.AWAITING_TRACK_VALIDATION) {
-                    log.debug("Skipping product status recomputation -- product {} is not awaiting track validation", productId);
+                ProductStatus currentStatus = product.getStatus();
+
+                if (currentStatus == ProductStatus.PUBLISHED
+                        || currentStatus == ProductStatus.TAKEN_DOWN
+                        || currentStatus == ProductStatus.RETIRED
+                        || currentStatus == ProductStatus.SUBMITTED
+                        || currentStatus == ProductStatus.RESUBMITTED) {
+                    log.debug("Skipping product {} -- status {} is not a validation state",
+                            productId, currentStatus);
                     return;
                 }
 
                 List<Track> tracks = trackRepository.findByProductId(productId);
 
+                boolean anyPending = tracks.stream()
+                        .anyMatch(t -> t.getStatus() == TrackStatus.PENDING);
                 boolean anyFailed = tracks.stream()
                         .anyMatch(t -> t.getStatus() == TrackStatus.VALIDATION_FAILED);
                 boolean anyNeedsReview = tracks.stream()
                         .anyMatch(t -> t.getStatus() == TrackStatus.NEEDS_REVIEW);
                 boolean allValidated = tracks.stream()
                         .allMatch(t -> t.getStatus() == TrackStatus.VALIDATED);
+
+                if (anyPending) {
+                    log.debug("Product {} still has pending tracks -- not recomputing yet", productId);
+                    return;
+                }
 
                 ProductStatus newStatus;
                 if (anyFailed) {
@@ -80,13 +94,18 @@ public class ProductStatusConsumer {
                 } else if (allValidated) {
                     newStatus = ProductStatus.VALIDATED;
                 } else {
-                    log.debug("Product {} tracks still in progress -- no status update", productId);
+                    log.warn("Product {} has unexpected track state mix -- skipping", productId);
+                    return;
+                }
+
+                if (newStatus == currentStatus) {
+                    log.debug("Product {} status unchanged -- skipping write", productId);
                     return;
                 }
 
                 productRepository.updateStatus(productId, newStatus, null,
                         ChangedByType.SYSTEM, null);
-                log.info("Recomputed product {} status to {}", productId, newStatus);
+                log.info("Recomputed product {} status from {} to {}", productId, currentStatus, newStatus);
             });
 
         } catch (Exception e) {
