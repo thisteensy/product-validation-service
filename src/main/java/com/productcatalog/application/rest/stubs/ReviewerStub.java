@@ -1,7 +1,7 @@
-package com.productcatalog.application.rest;
+package com.productcatalog.application.rest.stubs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.productcatalog.application.kafka.ProductEventDto;
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;

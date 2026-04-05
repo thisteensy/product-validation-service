@@ -1,10 +1,9 @@
 package com.productcatalog.application.kafka;
 
+import com.productcatalog.application.kafka.mappers.ProductEventMapper;
 import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.ProductRepository;
-import com.productcatalog.domain.ports.RuleEngine;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
-import com.productcatalog.infrastructure.rules.RuleEngineImpl;
+import com.productcatalog.domain.ports.out.RuleEngine;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -3,7 +3,9 @@ package com.productcatalog.infrastructure.persistence;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productcatalog.domain.model.*;
-import com.productcatalog.domain.ports.TrackRepository;
+import com.productcatalog.domain.ports.out.TrackRepository;
+import com.productcatalog.infrastructure.persistence.entities.TrackEntity;
+import com.productcatalog.infrastructure.persistence.ports.TrackJpaRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

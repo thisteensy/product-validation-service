@@ -1,6 +1,8 @@
 package com.productcatalog.infrastructure.rules;
 
 import com.productcatalog.domain.model.Product;
+import com.productcatalog.infrastructure.rules.dsp.DspOrchestrator;
+import com.productcatalog.infrastructure.rules.universal.ProductRules;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

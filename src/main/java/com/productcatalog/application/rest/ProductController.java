@@ -1,8 +1,10 @@
 package com.productcatalog.application.rest;
 
+import com.productcatalog.application.rest.mappers.ProductMapper;
+import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.ProductStatus;
-import com.productcatalog.domain.ports.ProductRepository;
+import com.productcatalog.domain.ports.out.ProductRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

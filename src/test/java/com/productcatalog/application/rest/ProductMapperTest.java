@@ -1,5 +1,7 @@
 package com.productcatalog.application.rest;
 
+import com.productcatalog.application.rest.mappers.ProductMapper;
+import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

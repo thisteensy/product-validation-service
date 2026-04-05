@@ -1,11 +1,10 @@
 package com.productcatalog.infrastructure.streams;
 
-import com.productcatalog.application.kafka.ProductEventDto;
-import com.productcatalog.application.kafka.ProductEventMapper;
-import com.productcatalog.application.kafka.TrackEventDto;
-import com.productcatalog.application.kafka.TrackEventMapper;
-import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
+import com.productcatalog.application.kafka.mappers.ProductEventMapper;
+import com.productcatalog.application.kafka.dtos.TrackEventDto;
+import com.productcatalog.application.kafka.mappers.TrackEventMapper;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.*;

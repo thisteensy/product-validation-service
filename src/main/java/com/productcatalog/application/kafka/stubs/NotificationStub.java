@@ -1,6 +1,7 @@
-package com.productcatalog.application.kafka;
+package com.productcatalog.application.kafka.stubs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -12,28 +13,28 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * Stub simulating a downstream DSP delivery service.
- * In production this would push published products to configured
- * DSP targets (Spotify, Apple Music, etc.) and process takedowns.
+ * Stub simulating a downstream notification service.
+ * In production this would dispatch emails or webhooks to labels
+ * on validation outcome and publication events.
  */
 @Component
-public class DspDeliveryStub {
+public class NotificationStub {
 
-    private static final Logger log = LoggerFactory.getLogger(DspDeliveryStub.class);
+    private static final Logger log = LoggerFactory.getLogger(NotificationStub.class);
 
-    private static final Set<String> ACTIONABLE_STATUSES = Set.of(
-            "PUBLISHED", "TAKEN_DOWN"
+    private static final Set<String> NOTIFIABLE_STATUSES = Set.of(
+            "VALIDATED", "VALIDATION_FAILED", "PUBLISHED"
     );
 
     private final ObjectMapper objectMapper;
 
-    public DspDeliveryStub(ObjectMapper objectMapper) {
+    public NotificationStub(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
     @KafkaListener(
             topics = "catalog.music_catalog.products",
-            groupId = "dsp-delivery-stub"
+            groupId = "notification-stub"
     )
     public void onProductEvent(@Payload String message,
                                @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
@@ -45,15 +46,15 @@ public class DspDeliveryStub {
             }
 
             String status = event.getPayload().getAfter().getStatus();
-            if (!ACTIONABLE_STATUSES.contains(status)) {
+            if (!NOTIFIABLE_STATUSES.contains(status)) {
                 return;
             }
 
             String productId = event.getPayload().getAfter().getId();
-            log.info("[DspDeliveryStub] Would deliver to DSPs for product={} status={}", productId, status);
+            log.info("[NotificationStub] Would notify label for product={} status={}", productId, status);
 
         } catch (Exception e) {
-            log.error("[DspDeliveryStub] Failed to process event", e);
+            log.error("[NotificationStub] Failed to process event", e);
         }
     }
 }

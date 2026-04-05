@@ -4,8 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productcatalog.domain.model.*;
-import com.productcatalog.domain.ports.ProductRepository;
-import com.productcatalog.domain.ports.ProductStatusHistoryRepository;
+import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.ProductStatusHistoryRepository;
+import com.productcatalog.infrastructure.persistence.entities.ProductEntity;
+import com.productcatalog.infrastructure.persistence.entities.TrackEntity;
+import com.productcatalog.infrastructure.persistence.ports.ProductJpaRepository;
+import com.productcatalog.infrastructure.persistence.ports.TrackJpaRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

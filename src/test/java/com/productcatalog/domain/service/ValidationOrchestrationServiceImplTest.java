@@ -1,8 +1,8 @@
 package com.productcatalog.domain.service;
 
 import com.productcatalog.domain.model.*;
-import com.productcatalog.domain.ports.ProductRepository;
-import com.productcatalog.domain.ports.TrackRepository;
+import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.TrackRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,4 +1,4 @@
-package com.productcatalog.infrastructure.persistence;
+package com.productcatalog.infrastructure.persistence.entities;
 
 import com.productcatalog.domain.model.ChangedByType;
 import jakarta.persistence.*;

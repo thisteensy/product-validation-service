@@ -1,6 +1,8 @@
 package com.productcatalog.application.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.productcatalog.application.kafka.dtos.TrackEventDto;
+import com.productcatalog.application.kafka.mappers.TrackEventMapper;
 import com.productcatalog.domain.model.ContributorRole;
 import com.productcatalog.domain.model.Track;
 import com.productcatalog.domain.model.TrackStatus;

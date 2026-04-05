@@ -1,7 +1,8 @@
-package com.productcatalog.application.kafka;
+package com.productcatalog.application.kafka.mappers;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
 import com.productcatalog.domain.model.*;
 import org.springframework.stereotype.Component;
 

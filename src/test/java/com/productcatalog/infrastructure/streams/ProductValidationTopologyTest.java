@@ -1,9 +1,9 @@
 package com.productcatalog.infrastructure.streams;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.productcatalog.application.kafka.ProductEventMapper;
-import com.productcatalog.application.kafka.TrackEventMapper;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
+import com.productcatalog.application.kafka.mappers.ProductEventMapper;
+import com.productcatalog.application.kafka.mappers.TrackEventMapper;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.TestInputTopic;

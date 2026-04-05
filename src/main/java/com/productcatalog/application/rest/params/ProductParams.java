@@ -1,4 +1,4 @@
-package com.productcatalog.application.rest;
+package com.productcatalog.application.rest.params;
 
 import com.productcatalog.domain.model.ContributorRole;
 import jakarta.validation.Valid;

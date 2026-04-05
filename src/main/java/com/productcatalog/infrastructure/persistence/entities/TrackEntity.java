@@ -1,4 +1,4 @@
-package com.productcatalog.infrastructure.persistence;
+package com.productcatalog.infrastructure.persistence.entities;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

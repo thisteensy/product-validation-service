@@ -2,8 +2,10 @@ package com.productcatalog.application.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productcatalog.ValidationBuilders;
+import com.productcatalog.application.rest.mappers.ProductMapper;
+import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
-import com.productcatalog.domain.ports.ProductRepository;
+import com.productcatalog.domain.ports.out.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

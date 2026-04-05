@@ -1,4 +1,4 @@
-package com.productcatalog.domain.ports;
+package com.productcatalog.domain.ports.in;
 
 import com.productcatalog.domain.model.ValidationOutcome;
 

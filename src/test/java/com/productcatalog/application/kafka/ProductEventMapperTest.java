@@ -2,6 +2,8 @@ package com.productcatalog.application.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
+import com.productcatalog.application.kafka.mappers.ProductEventMapper;
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.ProductStatus;
 import org.junit.jupiter.api.BeforeEach;

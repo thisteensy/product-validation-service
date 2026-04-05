@@ -2,17 +2,15 @@ package com.productcatalog.domain.service;
 
 import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.model.ProductStatus;
-import com.productcatalog.domain.model.Track;
 import com.productcatalog.domain.model.TrackStatus;
 import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.ProductRepository;
-import com.productcatalog.domain.ports.TrackRepository;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
+import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.TrackRepository;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service

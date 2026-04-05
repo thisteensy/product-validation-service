@@ -2,7 +2,9 @@ package com.productcatalog.infrastructure.persistence;
 
 import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.model.ProductStatus;
-import com.productcatalog.domain.ports.ProductStatusHistoryRepository;
+import com.productcatalog.domain.ports.out.ProductStatusHistoryRepository;
+import com.productcatalog.infrastructure.persistence.entities.ProductStatusHistoryEntity;
+import com.productcatalog.infrastructure.persistence.ports.ProductStatusHistoryJpaRepository;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;

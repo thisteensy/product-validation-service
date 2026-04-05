@@ -1,7 +1,9 @@
-package com.productcatalog.infrastructure.rules;
+package com.productcatalog.infrastructure.rules.dsp;
 
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.Track;
+import com.productcatalog.infrastructure.rules.RuleResult;
+import com.productcatalog.infrastructure.rules.RuleSeverity;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

@@ -1,10 +1,12 @@
 package com.productcatalog.application.kafka;
 
+import com.productcatalog.application.kafka.dtos.ProductEventDto;
+import com.productcatalog.application.kafka.mappers.ProductEventMapper;
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.ProductStatus;
 import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.RuleEngine;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
+import com.productcatalog.domain.ports.out.RuleEngine;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;

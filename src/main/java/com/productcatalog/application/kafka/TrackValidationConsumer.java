@@ -1,11 +1,13 @@
 package com.productcatalog.application.kafka;
 
+import com.productcatalog.application.kafka.dtos.TrackEventDto;
+import com.productcatalog.application.kafka.mappers.TrackEventMapper;
 import com.productcatalog.domain.model.Track;
 import com.productcatalog.domain.model.TrackStatus;
 import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.ProductRepository;
-import com.productcatalog.domain.ports.RuleEngine;
-import com.productcatalog.domain.ports.ValidationOrchestrationService;
+import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.RuleEngine;
+import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;

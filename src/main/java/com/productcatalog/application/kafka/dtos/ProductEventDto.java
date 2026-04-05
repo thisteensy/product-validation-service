@@ -1,4 +1,4 @@
-package com.productcatalog.application.kafka;
+package com.productcatalog.application.kafka.dtos;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

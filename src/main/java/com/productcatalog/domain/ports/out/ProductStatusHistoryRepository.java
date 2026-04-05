@@ -1,4 +1,4 @@
-package com.productcatalog.domain.ports;
+package com.productcatalog.domain.ports.out;
 
 import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.model.ProductStatus;

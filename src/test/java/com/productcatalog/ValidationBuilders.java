@@ -1,6 +1,6 @@
 package com.productcatalog;
 
-import com.productcatalog.application.rest.ProductParams;
+import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
 import com.productcatalog.infrastructure.rules.RuleResult;
 import com.productcatalog.infrastructure.rules.RuleSeverity;

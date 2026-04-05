@@ -1,5 +1,6 @@
-package com.productcatalog.application.rest;
+package com.productcatalog.application.rest.mappers;
 
+import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
 import org.springframework.stereotype.Component;
 

@@ -1,5 +1,6 @@
 package com.productcatalog.infrastructure.rules;
 
+import com.productcatalog.infrastructure.rules.dsp.SpotifyRules;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
