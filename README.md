@@ -43,7 +43,7 @@ flowchart LR
         DSP["🌍 DSP Delivery Stub"]
         REVIEWER["🔍 Reviewer Stub"]
   end
-    LABEL_UI -- "CRUD + resubmit" --> PAPI
+    LABEL_UI -- "CRUD" --> PAPI
     PAPI -- writes --> DB
     DB -- CDC --> DEB
     DEB == products ==> T1
