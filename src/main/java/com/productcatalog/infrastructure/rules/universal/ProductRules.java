@@ -70,15 +70,6 @@ public class ProductRules {
                     "Ownership splits are valid"));
         }
 
-        // At least one track required
-        if (product.getTracks() == null || product.getTracks().isEmpty()) {
-            results.add(new RuleResult("TracksRule", RuleSeverity.BLOCKING,
-                    "At least one track is required"));
-        } else {
-            results.add(new RuleResult("TracksRule", RuleSeverity.PASS,
-                    "At least one track is present"));
-        }
-
         // DSP-specific product rules
         results.addAll(dspOrchestrator.evaluateProduct(product));
 

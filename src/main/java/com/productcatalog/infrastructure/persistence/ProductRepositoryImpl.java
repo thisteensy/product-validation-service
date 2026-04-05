@@ -37,10 +37,8 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public void updateStatus(UUID id, ProductStatus status, String notes, ChangedByType changedByType, String changedById) {
         jpaRepository.findById(id.toString()).ifPresent(entity -> {
-            Product product = toDomain(entity);
-            ProductStatus previousStatus = product.getStatus();
-            product.transitionTo(status, product.getTracks());
-            entity.setStatus(product.getStatus().name());
+            ProductStatus previousStatus = ProductStatus.valueOf(entity.getStatus());
+            entity.setStatus(status.name());
             entity.setReviewerNotes(notes);
             jpaRepository.save(entity);
             historyRepository.record(id, previousStatus, status, changedByType, changedById, notes);

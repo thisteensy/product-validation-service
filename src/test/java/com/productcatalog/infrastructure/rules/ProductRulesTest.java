@@ -121,26 +121,4 @@ class ProductRulesTest {
                 r.getRuleName().equals("OwnershipSplitRule") &&
                         r.getSeverity() == RuleSeverity.BLOCKING);
     }
-
-    @Test
-    void shouldBlockWhenTracksAreEmpty() {
-        Product product = validProduct().toBuilder().tracks(List.of()).build();
-
-        List<RuleResult> results = productRules.evaluate(product);
-
-        assertThat(results).anyMatch(r ->
-                r.getRuleName().equals("TracksRule") &&
-                        r.getSeverity() == RuleSeverity.BLOCKING);
-    }
-
-    @Test
-    void shouldBlockWhenTracksAreNull() {
-        Product product = validProduct().toBuilder().tracks(null).build();
-
-        List<RuleResult> results = productRules.evaluate(product);
-
-        assertThat(results).anyMatch(r ->
-                r.getRuleName().equals("TracksRule") &&
-                        r.getSeverity() == RuleSeverity.BLOCKING);
-    }
 }
