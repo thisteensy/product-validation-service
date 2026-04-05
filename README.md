@@ -190,6 +190,61 @@ If a consumer was lagging, my first three checks would be consumer lag and offse
 
 Spring Kafka supports header-based trace context propagation, so a trace started at `POST /products` can follow the event through the validation consumers and into the streams topology, giving a single timeline for the full submission lifecycle.
 
+**Local debugging commands**
+
+When running locally, the following commands are useful for inspecting the pipeline without a UI:
+
+Check consumer lag for the validation consumers:
+```bash
+docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --group product-validation
+
+docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --group track-validation
+```
+
+Check Debezium connector status:
+```bash
+curl http://localhost:8083/connectors/music-catalog-connector/status
+```
+
+Inspect messages in the products topic:
+```bash
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic catalog.music_catalog.products \
+  --from-beginning \
+  --max-messages 10
+```
+
+Inspect the DLQ:
+```bash
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic product-dlq \
+  --from-beginning
+```
+
+Check Kafka Streams application state:
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+The `kafkaStreams` component will show one of the following states: `RUNNING`, `REBALANCING`, `ERROR`, `PAUSED`, or `NOT_RUNNING`. `REBALANCING` is normal on startup or after a redeployment -- it means the topology is reassigning partitions. `ERROR` means the streams thread has died and needs investigation.
+
+Check how many records the topology has processed:
+```bash
+docker logs product-catalog-service | grep "Processed [^0] total records"
+```
+
+This filters the Kafka Streams periodic summary log for any poll cycle where records were actually processed, which is useful for confirming the topology is consuming events rather than sitting idle.
+
+These are the same metrics AKHQ surfaces in its UI -- it uses the Kafka Connect REST API and Kafka AdminClient under the hood.
+
 **Application health** is exposed via Spring Boot Actuator at `http://localhost:8080/actuator/health`. All status transitions are logged at INFO level, so the validation pipeline is fully traceable through the application logs:
 ```bash
 docker logs product-catalog-service | grep "transitioned to"

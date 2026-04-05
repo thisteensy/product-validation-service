@@ -30,3 +30,15 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui
+
+management:
+  health:
+    kafka:
+      enabled: true
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
