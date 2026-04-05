@@ -97,21 +97,29 @@ flowchart LR
 
 **Debezium for change capture**
 
-Rather than publishing events explicitly from the application, I used Debezium to capture changes from MariaDB's binary log. This means the database is the source of truth and events flow from it naturally, so there's no risk of a write succeeding while the event publish fails. I've worked with this pattern before and it's one I trust.
+Rather than publishing events explicitly from the application, I used Debezium to capture changes from MariaDB's binary log. This means the database is the source of truth and events flow from it naturally -- there's no risk of a write succeeding while the event publish fails. I've worked with this pattern before and it's one I trust.
 
 **Keeping business logic out of the consumers**
 
-Early on the consumers were doing too much: rule evaluation, status decisions, rollup logic. I pulled all of that into `ValidationOrchestrationService` so the consumers just deserialize, filter, and delegate. It made the logic much easier to test and reason about, and it means if we add another consumer later there's no temptation to duplicate the state machine.
+Early on the consumers were doing too much -- rule evaluation, status decisions, rollup logic. I pulled all of that into `ValidationOrchestrationService` so the consumers just deserialize, filter, and delegate. The severity-to-status mapping was duplicated across both consumers before the refactor. Having it in one place means it's testable without Kafka and impossible to accidentally get out of sync.
 
 **Rule engine behind a port**
 
-The domain only knows about `ValidationOutcome`. It never sees `RuleResult` or `RuleSeverity`. I defined a `RuleEngine` port so the consumers depend on an interface, not on the infrastructure classes directly. The rule implementations can change without touching the domain.
+The domain only knows about `ValidationOutcome` -- it never sees `RuleResult` or `RuleSeverity`. I defined a `RuleEngine` port so the consumers depend on an interface, not on the infrastructure classes directly. The rule implementations can change without touching the domain.
 
 **Kafka Streams KTable for submission state**
 
-The tricky part of this problem is knowing when all tracks for a product have finished validating. My first instinct was to query MariaDB on every track event, but that gets chatty at scale. Instead I built a Kafka Streams application that merges the product and track event streams into a KTable keyed by product ID. The KTable holds the current validation state of each in-flight submission, and when it detects all tracks are validated it triggers the rollup.
+The tricky part of this problem is knowing when all tracks for a product have finished validating. My first instinct was to query MariaDB on every track event, but that gets chatty at scale. Instead I built a Kafka Streams topology that merges the product and track event streams into a KTable keyed by product ID. The KTable holds the current validation state of each in-flight submission, and when it detects all tracks are validated it triggers the rollup.
 
-The Kafka Streams app lives in the same service as everything else. I wouldn't do that in production. It should be a separate stateful deployment with persistent RocksDB volumes, but for this submission it keeps things self-contained.
+The Kafka Streams app lives in the same service as everything else. I wouldn't do that in production -- it should be a separate stateful deployment with persistent RocksDB volumes -- but for this submission it keeps things self-contained and I've called it out clearly.
+
+**Explicit resubmission**
+
+Resubmission is a two-step process -- the label updates their product via `PUT /products/{id}`, then explicitly triggers validation via `POST /products/{id}/resubmit`. I made this explicit rather than implicit because implicit resubmission creates a subtle problem: a label might save partial corrections multiple times before they're satisfied, and firing validation on incomplete data wastes pipeline capacity and creates noise in the reviewer queue. An explicit resubmit gives the label control over when they're ready.
+
+**Product-level validation doesn't check for tracks**
+
+The product validation consumer receives a Debezium CDC event containing only the columns of the `products` table. Tracks live in a separate table and aren't included. When the mapper reconstructs a `Product` from the CDC event, the track list is always null -- so any rule checking track existence would always fail regardless of whether tracks were actually submitted. Track existence is already enforced at the API boundary, so the rule is redundant and was removed.
 
 ## Running locally
 
