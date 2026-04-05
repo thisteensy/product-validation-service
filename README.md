@@ -176,6 +176,31 @@ Open `http://localhost:8080/swagger-ui`, expand the `POST /products` endpoint, c
 
 After submitting, use `GET /products/{id}` with the returned ID to check the validation status. Allow a few seconds for the pipeline to process.
 
+## Observability
+
+The stack includes built-in observability at two levels.
+
+**Infrastructure metrics** are handled by the Confluent Kafka Connect image, which exports JMX metrics covering consumer lag, throughput, and connector health out of the box. Consumer lag on the `product-validation` and `track-validation` consumer groups is the most useful signal for this pipeline -- if either falls behind, validation is slow.
+
+**Distributed tracing**
+
+The service includes Micrometer Tracing via the Actuator dependency, but no tracing backend is configured. In production I'd reach for OpenTelemetry with a collector exporting to Tempo or Jaeger.
+
+If a consumer was lagging, my first three checks would be consumer lag and offset (is it falling behind and at what rate), resource utilization (is the consumer CPU or memory bound, or is it blocked on I/O), and distributed traces (is a specific message type taking significantly longer to process than others, pointing to a rule or a DB query as the bottleneck). Tracing is particularly useful here because a slow rule evaluation or a slow MariaDB read inside the validation consumer would show up as a long span, which lag metrics alone can't tell you.
+
+Spring Kafka supports header-based trace context propagation, so a trace started at `POST /products` can follow the event through the validation consumers and into the streams topology, giving a single timeline for the full submission lifecycle.
+
+**Application health** is exposed via Spring Boot Actuator at `http://localhost:8080/actuator/health`. All status transitions are logged at INFO level, so the validation pipeline is fully traceable through the application logs:
+```bash
+docker logs product-catalog-service | grep "transitioned to"
+```
+
+**What I'd add in production**
+
+Custom Micrometer counters for business outcomes -- products validated, failed, and flagged for review -- exposed via the Actuator metrics endpoint and scraped by Prometheus. These are domain events that infrastructure metrics can't see, and they're the numbers a QC team would actually care about day to day. The natural place for these counters is the application layer, in the consumers after the orchestration service call, so the domain stays clean.
+
+A DLQ monitor would also be a first priority -- alerting via a Slack webhook whenever a message lands in `product-dlq` so the team can inspect and replay failed messages promptly.
+
 ## What I'd do differently with more time
 
 **Extract the validation pipeline into its own service.** The product API and the validation pipeline have different operational requirements and should be separate services. The API is stateless and scales horizontally without ceremony. The validation pipeline (consumers, rule engine, and Kafka Streams application) is stateful, event-driven, and needs different scaling characteristics, particularly around the RocksDB state store. Keeping them together made sense for the submission but in production they would be separate deployments.
