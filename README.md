@@ -239,6 +239,10 @@ A DLQ monitor would also be a first priority, alerting via a Slack webhook whene
 
 ## What I'd do differently with more time
 
+**Catalog search and filtering**
+
+The current `GET /products` returns all products which is fine for a demo but not realistic for production. A label-facing API would need filtering by UPC, title, ISRC, status, and label. The label filter in particular is tied to authentication -- once labels authenticate via OAuth2, `GET /products` should implicitly scope results to the authenticated label's catalog without requiring them to pass a label ID explicitly.
+
 **Extract the validation pipeline into its own service.** The product API and the validation pipeline have different operational requirements and should be separate services. The API is stateless and scales horizontally without ceremony. The validation pipeline (consumers, rule engine, and Kafka Streams application) is stateful, event-driven, and needs different scaling characteristics, particularly around the RocksDB state store. Keeping them together made sense for the submission but in production they would be separate deployments.
 
 **Add Reviewer Controller** For the validation flow I would assume there would be a manual review flow. It is stubbed in this project.
