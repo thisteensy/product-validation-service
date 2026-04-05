@@ -64,6 +64,7 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    @Transactional
     public Product save(Product product) {
         try {
             ProductEntity entity = new ProductEntity(

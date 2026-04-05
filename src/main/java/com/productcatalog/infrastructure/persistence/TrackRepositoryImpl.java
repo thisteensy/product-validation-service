@@ -7,6 +7,7 @@ import com.productcatalog.domain.ports.out.TrackRepository;
 import com.productcatalog.infrastructure.persistence.entities.TrackEntity;
 import com.productcatalog.infrastructure.persistence.ports.TrackJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,14 +38,15 @@ public class TrackRepositoryImpl implements TrackRepository {
     }
 
     @Override
+    @Transactional
     public void updateStatus(UUID id, TrackStatus status, String notes,
                              ChangedByType changedByType, String changedById) {
-        jpaRepository.findById(id.toString()).ifPresent(entity -> {
-            Track track = toDomain(entity);
-            track.transitionTo(status);
-            entity.setStatus(track.getStatus().name());
-            jpaRepository.save(entity);
-        });
+        TrackEntity entity = jpaRepository.findById(id.toString())
+                .orElseThrow(() -> new IllegalStateException("Track not found: " + id));
+        Track track = toDomain(entity);
+        track.transitionTo(status);
+        entity.setStatus(track.getStatus().name());
+        jpaRepository.save(entity);
     }
 
     private Track toDomain(TrackEntity entity) {
