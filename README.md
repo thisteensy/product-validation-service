@@ -249,6 +249,8 @@ A DLQ monitor would also be a first priority, alerting via a Slack webhook whene
 
 **Add a clean intermediate topic between Debezium and the consumers.** Right now the consumers parse the Debezium envelope directly. If we ever change CDC tooling, the consumers break. A thin translator producing to a stable domain event topic would decouple the two concerns properly.
 
+**Add a topic downstream** (Outbox Pattern) Currently the Orchestration Service writes directly to the DB which could fail. If implemented a resilient producer we would have a way of guaranteeing that writes aren't failing silently.
+
 **Authentication and authorization** Currently any caller can submit, update, or delete any product. In production, the API would sit behind an identity provider like Okta. Labels would authenticate via OAuth2 and their token would scope them to their own catalog, a label can only read and modify their own products. The `changed_by_id` field on status history is already nullable and waiting for this, once authentication is in place, the authenticated label account ID would populate that field on every resubmission, giving a full audit trail of who changed what and when.
 
 **Kafka Streams Interactive Queries** The KTable state store can be queried directly via Kafka Streams Interactive Queries API, exposing the materialized validation state for any in-flight submission by product ID without hitting MariaDB. This would be a useful debugging endpoint in production, seeing exactly what the topology has materialized for a given product, including the per-track status map, is valuable when investigating why a rollup didn't fire as expected. 

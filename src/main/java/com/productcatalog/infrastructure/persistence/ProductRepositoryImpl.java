@@ -37,14 +37,15 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    @Transactional
     public void updateStatus(UUID id, ProductStatus status, String notes, ChangedByType changedByType, String changedById) {
-        jpaRepository.findById(id.toString()).ifPresent(entity -> {
-            ProductStatus previousStatus = ProductStatus.valueOf(entity.getStatus());
-            entity.setStatus(status.name());
-            entity.setReviewerNotes(notes);
-            jpaRepository.save(entity);
-            historyRepository.record(id, previousStatus, status, changedByType, changedById, notes);
-        });
+        ProductEntity entity = jpaRepository.findById(id.toString())
+                .orElseThrow(() -> new IllegalStateException("Product not found: " + id));
+        ProductStatus previousStatus = ProductStatus.valueOf(entity.getStatus());
+        entity.setStatus(status.name());
+        entity.setReviewerNotes(notes);
+        jpaRepository.save(entity);
+        historyRepository.record(id, previousStatus, status, changedByType, changedById, notes);
     }
 
     @Override
@@ -101,8 +102,10 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    @Transactional
     public void update(Product product) {
-        jpaRepository.findById(product.getId().toString()).ifPresent(entity -> {
+        ProductEntity entity = jpaRepository.findById(product.getId().toString())
+                .orElseThrow(() -> new IllegalStateException("Product not found: " + product.getId()));
             entity.setUpc(product.getUpc());
             entity.setTitle(product.getTitle());
             entity.setReleaseDate(product.getReleaseDate());
@@ -161,7 +164,6 @@ public class ProductRepositoryImpl implements ProductRepository {
                     }
                 }
             }
-        });
     }
 
     private void saveTracks(List<Track> tracks, ProductEntity productEntity) {
