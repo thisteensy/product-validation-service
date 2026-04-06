@@ -1,5 +1,6 @@
 package com.productcatalog.domain.ports.out;
 
+import com.productcatalog.domain.model.CatalogSearchResult;
 import com.productcatalog.domain.model.ChangedByType;
 import com.productcatalog.domain.model.Track;
 import com.productcatalog.domain.model.TrackStatus;
@@ -12,4 +13,5 @@ public interface TrackRepository {
     Optional<Track> findById(UUID id);
     List<Track> findByProductId(UUID productId);
     void updateStatus(UUID id, TrackStatus status, String notes, ChangedByType changedByType, String changedById);
+    List<CatalogSearchResult> searchCatalog(String artist, String label, String genre, String title, String isrc, String status);
 }

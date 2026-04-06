@@ -11,7 +11,6 @@ import java.util.UUID;
 public interface ProductRepository {
     Product save(Product product);
     Optional<Product> findById(UUID id);
-    List<Product> findByFilters(String artist, String label, String genre, String status);
     List<Product> findAll();
     void updateStatus(UUID id, ProductStatus status, String notes, ChangedByType changedByType, String changedById);
     void deleteById(UUID id);

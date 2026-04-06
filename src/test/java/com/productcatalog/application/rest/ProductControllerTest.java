@@ -6,6 +6,7 @@ import com.productcatalog.application.rest.mappers.ProductMapper;
 import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
 import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.TrackRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,9 @@ class ProductControllerTest {
 
     @MockitoBean
     private ProductRepository productRepository;
+
+    @MockitoBean
+    private TrackRepository trackRepository;
 
     @MockitoBean
     private ProductMapper productMapper;
@@ -89,64 +93,6 @@ class ProductControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.id").isNotEmpty());
-    }
-
-    @Test
-    void shouldReturnAllProductsWhenNoFiltersProvided() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByFilters(null, null, null, null))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
-    }
-
-    @Test
-    void shouldFilterByArtist() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByFilters("Michael Jackson", null, null, null))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products").param("artist", "Michael Jackson"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
-    }
-
-    @Test
-    void shouldFilterByLabel() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByFilters(null, "Epic Records", null, null))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products").param("label", "Epic Records"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
-    }
-
-    @Test
-    void shouldFilterByStatus() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByFilters(null, null, null, "SUBMITTED"))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products").param("status", "SUBMITTED"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
-    }
-
-    @Test
-    void shouldFilterByCombinedParams() throws Exception {
-        Product product = ValidationBuilders.validProduct();
-        when(productRepository.findByFilters("Michael Jackson", "Epic Records", null, "SUBMITTED"))
-                .thenReturn(List.of(product));
-
-        mockMvc.perform(get("/products")
-                        .param("artist", "Michael Jackson")
-                        .param("label", "Epic Records")
-                        .param("status", "SUBMITTED"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
     }
 
     @Test
@@ -297,5 +243,51 @@ class ProductControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldReturnSearchResultsWithNoFilters() throws Exception {
+        CatalogSearchResult result = ValidationBuilders.validCatalogSearchResult();
+        when(trackRepository.searchCatalog(null, null, null, null, null, null))
+                .thenReturn(List.of(result));
+
+        mockMvc.perform(get("/products/search"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].isrc").value("USRC17607839"));
+    }
+
+    @Test
+    void shouldReturnSearchResultsFilteredByArtist() throws Exception {
+        CatalogSearchResult result = ValidationBuilders.validCatalogSearchResult();
+        when(trackRepository.searchCatalog("Michael Jackson", null, null, null, null, null))
+                .thenReturn(List.of(result));
+
+        mockMvc.perform(get("/products/search").param("artist", "Michael Jackson"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].artist").value("Michael Jackson"));
+    }
+
+    @Test
+    void shouldReturnSearchResultsWithCombinedFilters() throws Exception {
+        CatalogSearchResult result = ValidationBuilders.validCatalogSearchResult();
+        when(trackRepository.searchCatalog("Michael Jackson", "Epic Records", null, "Thriller", null, null))
+                .thenReturn(List.of(result));
+
+        mockMvc.perform(get("/products/search")
+                        .param("artist", "Michael Jackson")
+                        .param("label", "Epic Records")
+                        .param("title", "Thriller"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].trackTitle").value("Thriller"));
+    }
+
+    @Test
+    void shouldReturnEmptyListWhenNoSearchResultsFound() throws Exception {
+        when(trackRepository.searchCatalog(null, null, null, null, "BADISRC", null))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/products/search").param("isrc", "BADISRC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
     }
 }

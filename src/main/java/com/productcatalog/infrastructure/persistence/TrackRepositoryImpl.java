@@ -6,6 +6,7 @@ import com.productcatalog.domain.model.*;
 import com.productcatalog.domain.ports.out.TrackRepository;
 import com.productcatalog.infrastructure.persistence.entities.TrackEntity;
 import com.productcatalog.infrastructure.persistence.ports.TrackJpaRepository;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,5 +67,30 @@ public class TrackRepositoryImpl implements TrackRepository {
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize track entity: " + entity.getId(), e);
         }
+    }
+    @Override
+    public List<CatalogSearchResult> searchCatalog(String artist, String label, String genre,
+                                                   String title, String isrc, String status) {
+        Specification<TrackEntity> spec = CatalogSearchSpecification.hasArtist(artist)
+                .and(CatalogSearchSpecification.hasLabel(label))
+                .and(CatalogSearchSpecification.hasGenre(genre))
+                .and(CatalogSearchSpecification.hasTrackTitle(title))
+                .and(CatalogSearchSpecification.hasIsrc(isrc))
+                .and(CatalogSearchSpecification.hasTrackStatus(status));
+
+        return jpaRepository.findAll(spec).stream()
+                .map(track -> new CatalogSearchResult(
+                        UUID.fromString(track.getId()),
+                        track.getIsrc(),
+                        track.getTitle(),
+                        TrackStatus.valueOf(track.getStatus()),
+                        UUID.fromString(track.getProduct().getId()),
+                        track.getProduct().getTitle(),
+                        track.getProduct().getArtist(),
+                        track.getProduct().getLabel(),
+                        track.getProduct().getGenre(),
+                        ProductStatus.valueOf(track.getProduct().getStatus())
+                ))
+                .toList();
     }
 }

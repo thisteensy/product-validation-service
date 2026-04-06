@@ -2,9 +2,11 @@ package com.productcatalog.application.rest;
 
 import com.productcatalog.application.rest.mappers.ProductMapper;
 import com.productcatalog.application.rest.params.ProductParams;
+import com.productcatalog.domain.model.CatalogSearchResult;
 import com.productcatalog.domain.model.Product;
 import com.productcatalog.domain.model.ProductStatus;
 import com.productcatalog.domain.ports.out.ProductRepository;
+import com.productcatalog.domain.ports.out.TrackRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,10 +25,12 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final TrackRepository trackRepository;
     private final ProductMapper productMapper;
 
-    public ProductController(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductController(ProductRepository productRepository, TrackRepository trackRepository, ProductMapper productMapper) {
         this.productRepository = productRepository;
+        this.trackRepository = trackRepository;
         this.productMapper = productMapper;
     }
 
@@ -58,15 +62,11 @@ public class ProductController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Get all products, optionally filtered by artist, label, genre, or status")
+    @Operation(summary = "Get all products")
     @ApiResponse(responseCode = "200", description = "List of products")
     @GetMapping
-    public ResponseEntity<List<Product>> getAll(
-            @RequestParam(required = false) String artist,
-            @RequestParam(required = false) String label,
-            @RequestParam(required = false) String genre,
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(productRepository.findByFilters(artist, label, genre, status));
+    public ResponseEntity<List<Product>> getAll() {
+        return ResponseEntity.ok(productRepository.findAll());
     }
 
     @DeleteMapping("/{id}")
@@ -95,5 +95,17 @@ public class ProductController {
 
         productRepository.update(product.toBuilder().id(id).build());
         return ResponseEntity.ok().build();
+    }
+    @Operation(summary = "Search the catalog by any combination of artist, label, genre, track title, ISRC, or status")
+    @ApiResponse(responseCode = "200", description = "Search results")
+    @GetMapping("/search")
+    public ResponseEntity<List<CatalogSearchResult>> search(
+            @RequestParam(required = false) String artist,
+            @RequestParam(required = false) String label,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String isrc,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(trackRepository.searchCatalog(artist, label, genre, title, isrc, status));
     }
 }

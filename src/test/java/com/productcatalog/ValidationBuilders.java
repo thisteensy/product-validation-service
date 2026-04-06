@@ -46,46 +46,6 @@ public class ValidationBuilders {
                 .build();
     }
 
-    public static Product invalidProduct() {
-        return Product.builder()
-                .id(UUID.randomUUID())
-                .upc("")
-                .title("")
-                .tracks(List.of())
-                .releaseDate(null)
-                .genre(null)
-                .language(null)
-                .ownershipSplits(List.of())
-                .artworkUri(null)
-                .dspTargets(List.of())
-                .status(ProductStatus.SUBMITTED)
-                .build();
-    }
-
-    public static List<RuleResult> passingRuleResults() {
-        return List.of(
-                new RuleResult("IsrcFormatRule", RuleSeverity.PASS, "ISRC format is valid"),
-                new RuleResult("TitleRule", RuleSeverity.PASS, "Title is present"),
-                new RuleResult("ContributorRule", RuleSeverity.PASS, "At least one contributor present")
-        );
-    }
-
-    public static List<RuleResult> warningRuleResults() {
-        return List.of(
-                new RuleResult("IsrcFormatRule", RuleSeverity.PASS, "ISRC format is valid"),
-                new RuleResult("ArtworkRule", RuleSeverity.WARNING, "Artwork resolution below recommended 3000x3000"),
-                new RuleResult("ContributorRule", RuleSeverity.PASS, "At least one contributor present")
-        );
-    }
-
-    public static List<RuleResult> failingRuleResults() {
-        return List.of(
-                new RuleResult("IsrcFormatRule", RuleSeverity.BLOCKING, "ISRC format is invalid"),
-                new RuleResult("TitleRule", RuleSeverity.BLOCKING, "Title is missing"),
-                new RuleResult("ContributorRule", RuleSeverity.PASS, "At least one contributor present")
-        );
-    }
-
     public static ProductParams validProductParams() {
         ProductParams.ContributorParams contributor = new ProductParams.ContributorParams();
         contributor.setName("Michael Jackson");
@@ -149,5 +109,20 @@ public class ValidationBuilders {
         row.setOwnershipSplits("[{\"rightsHolder\":\" MJ Estate \",\"percentage\":100.0}]");
         row.setStatus("PENDING");
         return row;
+    }
+
+    public static CatalogSearchResult validCatalogSearchResult() {
+        return new CatalogSearchResult(
+                UUID.randomUUID(),
+                "USRC17607839",
+                "Thriller",
+                TrackStatus.VALIDATED,
+                UUID.randomUUID(),
+                "Thriller",
+                "Michael Jackson",
+                "Epic Records",
+                "pop",
+                ProductStatus.VALIDATED
+        );
     }
 }
