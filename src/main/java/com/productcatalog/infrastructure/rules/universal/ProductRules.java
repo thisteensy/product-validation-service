@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Component
@@ -41,7 +42,7 @@ public class ProductRules {
         }
 
         // Genre
-        if (product.getGenre() == null || !ACCEPTED_GENRES.contains(product.getGenre().toLowerCase())) {
+        if (product.getGenre() == null || !ACCEPTED_GENRES.contains(product.getGenre().toLowerCase(Locale.ROOT))) {
             results.add(new RuleResult("GenreRule", RuleSeverity.WARNING,
                     "Genre '" + product.getGenre() + "' is not in the accepted genre list"));
         } else {

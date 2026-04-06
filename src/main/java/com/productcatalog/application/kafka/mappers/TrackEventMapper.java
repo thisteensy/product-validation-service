@@ -7,6 +7,7 @@ import com.productcatalog.domain.model.*;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -30,7 +31,7 @@ public class TrackEventMapper {
         try {
             return Track.builder()
                     .id(UUID.fromString(row.getId()))
-                    .isrc(row.getIsrc() == null ? null : row.getIsrc().strip().toUpperCase())
+                    .isrc(row.getIsrc() == null ? null : row.getIsrc().strip().toUpperCase(Locale.ROOT))
                     .title(row.getTitle() == null ? null : row.getTitle().strip())
                     .trackNumber(row.getTrackNumber() == null ? 0 : row.getTrackNumber())
                     .audioFileUri(row.getAudioFileUri() == null ? null : row.getAudioFileUri().strip())

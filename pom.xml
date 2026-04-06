@@ -224,6 +224,21 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-pmd-plugin</artifactId>
+				<version>3.25.0</version>
+				<configuration>
+					<rulesets>
+						<ruleset>/category/java/bestpractices.xml</ruleset>
+						<ruleset>/category/java/design.xml</ruleset>
+						<ruleset>/category/java/errorprone.xml</ruleset>
+					</rulesets>
+					<failOnViolation>false</failOnViolation>
+					<printFailingErrors>true</printFailingErrors>
+					<targetJdk>21</targetJdk>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

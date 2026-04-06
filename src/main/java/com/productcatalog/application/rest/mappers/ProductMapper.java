@@ -4,6 +4,7 @@ import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -17,7 +18,7 @@ public class ProductMapper {
                 .label(params.getLabel() == null ? null : params.getLabel().strip())
                 .releaseDate(params.getReleaseDate())
                 .genre(params.getGenre() == null ? null : params.getGenre().strip())
-                .language(params.getLanguage() == null ? null : params.getLanguage().strip().toLowerCase())
+                .language(params.getLanguage() == null ? null : params.getLanguage().strip().toLowerCase(Locale.ROOT))
                 .artworkUri(params.getArtworkUri() == null ? null : params.getArtworkUri().strip())
                 .ownershipSplits(params.getOwnershipSplits() == null ? null : params.getOwnershipSplits().stream()
                         .map(o -> new OwnershipSplit(
@@ -25,7 +26,7 @@ public class ProductMapper {
                                 o.getPercentage()))
                         .toList())
                 .dspTargets(params.getDspTargets() == null ? null : params.getDspTargets().stream()
-                        .map(t -> t == null ? null : t.strip().toLowerCase())
+                        .map(t -> t == null ? null : t.strip().toLowerCase(Locale.ROOT))
                         .toList())
                 .tracks(params.getTracks() == null ? null : params.getTracks().stream()
                         .map(this::toTrackFromTrackParams)
@@ -36,7 +37,7 @@ public class ProductMapper {
     private Track toTrackFromTrackParams(ProductParams.TrackParams params) {
         return Track.builder()
                 .id(UUID.randomUUID())
-                .isrc(params.getIsrc() == null ? null : params.getIsrc().strip().toUpperCase())
+                .isrc(params.getIsrc() == null ? null : params.getIsrc().strip().toUpperCase(Locale.ROOT))
                 .title(params.getTitle() == null ? null : params.getTitle().strip())
                 .trackNumber(params.getTrackNumber())
                 .audioFileUri(params.getAudioFileUri() == null ? null : params.getAudioFileUri().strip())

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Component
@@ -30,7 +31,7 @@ public class TrackRules {
         if (track.getAudioFileUri() != null) {
             String extension = track.getAudioFileUri()
                     .substring(track.getAudioFileUri().lastIndexOf('.') + 1)
-                    .toLowerCase();
+                    .toLowerCase(Locale.ROOT);
             if (!ACCEPTED_AUDIO_FORMATS.contains(extension)) {
                 results.add(new RuleResult("AudioFormatRule", RuleSeverity.BLOCKING,
                         "Audio format '." + extension + "' is not accepted. Accepted formats: " + ACCEPTED_AUDIO_FORMATS));

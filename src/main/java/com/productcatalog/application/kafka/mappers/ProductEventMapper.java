@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -36,7 +37,7 @@ public class ProductEventMapper {
                     .tracks(null)
                     .releaseDate(LocalDate.ofEpochDay(row.getReleaseDate()))
                     .genre(row.getGenre() == null ? null : row.getGenre().strip())
-                    .language(row.getLanguage() == null ? null : row.getLanguage().strip().toLowerCase())
+                    .language(row.getLanguage() == null ? null : row.getLanguage().strip().toLowerCase(Locale.ROOT))
                     .ownershipSplits(row.getOwnershipSplits() == null ? null :
                             objectMapper.readValue(row.getOwnershipSplits(),
                                             new TypeReference<List<OwnershipSplit>>() {}).stream()
@@ -48,7 +49,7 @@ public class ProductEventMapper {
                     .dspTargets(row.getDspTargets() == null ? null :
                             objectMapper.readValue(row.getDspTargets(),
                                             new TypeReference<List<String>>() {}).stream()
-                                    .map(t -> t == null ? null : t.strip().toLowerCase())
+                                    .map(t -> t == null ? null : t.strip().toLowerCase(Locale.ROOT))
                                     .toList())
                     .status(ProductStatus.valueOf(row.getStatus()))
                     .build();
