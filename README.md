@@ -220,6 +220,8 @@ The same API could back a real-time state visualization, a live view of in-fligh
 
 **Control status transitions** I might apply a check on status transitions so that they could not accidentally flow in an illogical direction without review.
 
+**Contract testing** would be used to ensure that the API delivers what the UI expects.
+
 ### CI/CD
 
 **Kubernetes deployment** The validation pipeline has two distinct operational profiles that would drive the Kubernetes deployment strategy. The product API is stateless and scales horizontally with a standard `Deployment`. The Kafka Streams topology is stateful, it maintains a RocksDB state store that needs to survive pod restarts. That means a `StatefulSet` with a persistent volume claim per replica, careful partition assignment so each replica owns a consistent subset of partitions, and a readiness probe backed by the custom `KafkaStreamsHealthIndicator` so traffic only routes to pods whose topology is in `RUNNING` state. The Debezium connector registration, currently handled by `init.sh`, would move to a Kubernetes `Job` that runs after Kafka Connect is healthy, using an init container or a readiness gate to sequence the startup correctly.
@@ -227,3 +229,5 @@ The same API could back a real-time state visualization, a live view of in-fligh
 **Security scanning and pre-commit hooks** In production I'd add Snyk or Dependabot to scan dependencies for known vulnerabilities, integrated into the GitHub Actions pipeline so a failing scan blocks the deployment. Pre-commit hooks via Husky or a simple shell script would catch obvious issues before they hit CI, at minimum a checkstyle run and a quick `./mvnw test` on changed modules. The goal is to catch things as early as possible rather than waiting for the deployment pipeline to fail.
 
 **Reliability, Fault Tolerance and Performance** A production system would never have only one deployment. There would be more than one environment, usually three. Everything in each environment would be replicated. There would be multiple nodes of the applications, multiple replicas of the topics. There would be a replica or some way to recover the database. There would be a load balancer in front of the servers.
+
+**Semantic Versioning** I would implement semantic versioning to guard against breaking changes.
