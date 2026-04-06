@@ -55,7 +55,7 @@ class TrackValidationConsumerTest {
     }
 
     @Test
-    void shouldCallOrchestrationServiceWhenStatusIsPendingAndOpIsCreate() {
+    void shouldCallOrchestrationServiceWhenStatusIsPendingAndOpIsCreate() throws Exception {
         when(productRepository.findById(any())).thenReturn(Optional.of(validProduct()));
         when(ruleEngine.evaluateTrack(any(), any())).thenReturn(ValidationOutcome.PASSED);
 
@@ -66,7 +66,7 @@ class TrackValidationConsumerTest {
     }
 
     @Test
-    void shouldCallOrchestrationServiceWhenStatusIsPendingAndOpIsUpdate() {
+    void shouldCallOrchestrationServiceWhenStatusIsPendingAndOpIsUpdate() throws Exception {
         when(productRepository.findById(any())).thenReturn(Optional.of(validProduct()));
         when(ruleEngine.evaluateTrack(any(), any())).thenReturn(ValidationOutcome.PASSED);
 
@@ -77,21 +77,21 @@ class TrackValidationConsumerTest {
     }
 
     @Test
-    void shouldSkipEventWhenOpIsDelete() {
+    void shouldSkipEventWhenOpIsDelete() throws Exception {
         consumer.consume(trackEvent("PENDING", "d"), "catalog.music_catalog.tracks");
 
         verify(orchestrationService, never()).onTrackEvaluated(any(), any(), any());
     }
 
     @Test
-    void shouldSkipEventWhenStatusIsNotPending() {
+    void shouldSkipEventWhenStatusIsNotPending() throws Exception {
         consumer.consume(trackEvent("VALIDATED", "u"), "catalog.music_catalog.tracks");
 
         verify(orchestrationService, never()).onTrackEvaluated(any(), any(), any());
     }
 
     @Test
-    void shouldSkipEventWhenPayloadAfterIsNull() {
+    void shouldSkipEventWhenPayloadAfterIsNull() throws Exception {
         String message = """
                 {"payload":{"op":"c","after":null}}
                 """;
@@ -102,7 +102,7 @@ class TrackValidationConsumerTest {
     }
 
     @Test
-    void shouldSkipEventWhenPayloadIsNull() {
+    void shouldSkipEventWhenPayloadIsNull() throws Exception {
         String message = """
                 {"payload":null}
                 """;
@@ -113,7 +113,7 @@ class TrackValidationConsumerTest {
     }
 
     @Test
-    void shouldUseFallbackDspTargetsWhenProductNotFound() {
+    void shouldUseFallbackDspTargetsWhenProductNotFound() throws Exception {
         when(productRepository.findById(any())).thenReturn(Optional.empty());
         when(ruleEngine.evaluateTrack(any(), any())).thenReturn(ValidationOutcome.PASSED);
 

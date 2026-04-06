@@ -31,8 +31,19 @@ public class KafkaConfig {
         FixedBackOff backOff = new FixedBackOff(1000L, 3);
 
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, backOff);
-        handler.addNotRetryableExceptions(RuntimeException.class);
+        handler.addNotRetryableExceptions(
+                com.fasterxml.jackson.core.JsonProcessingException.class,
+                IllegalArgumentException.class
+        );
 
         return handler;
+    }
+
+    @Bean
+    public NewTopic statusUpdatesTopic() {
+        return TopicBuilder.name("catalog.validation.status-updates")
+                .partitions(1)
+                .replicas(1)
+                .build();
     }
 }

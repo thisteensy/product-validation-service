@@ -1,11 +1,7 @@
 package com.productcatalog.domain.service;
 
-import com.productcatalog.domain.model.ChangedByType;
-import com.productcatalog.domain.model.ProductStatus;
-import com.productcatalog.domain.model.TrackStatus;
-import com.productcatalog.domain.model.ValidationOutcome;
-import com.productcatalog.domain.ports.out.ProductRepository;
-import com.productcatalog.domain.ports.out.TrackRepository;
+import com.productcatalog.domain.model.*;
+import com.productcatalog.domain.ports.out.StatusUpdatePublisher;
 import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,13 +14,10 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
 
     private static final Logger log = LoggerFactory.getLogger(ValidationOrchestrationServiceImpl.class);
 
-    private final ProductRepository productRepository;
-    private final TrackRepository trackRepository;
+    private final StatusUpdatePublisher statusUpdatePublisher;
 
-    public ValidationOrchestrationServiceImpl(ProductRepository productRepository,
-                                              TrackRepository trackRepository) {
-        this.productRepository = productRepository;
-        this.trackRepository = trackRepository;
+    public ValidationOrchestrationServiceImpl(StatusUpdatePublisher statusUpdatePublisher) {
+        this.statusUpdatePublisher = statusUpdatePublisher;
     }
 
     @Override
@@ -41,7 +34,14 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
             case PASSED -> null;
         };
 
-        productRepository.updateStatus(productId, newStatus, notes, ChangedByType.SYSTEM, null);
+        statusUpdatePublisher.publish(new StatusUpdateEvent(
+                StatusUpdateEvent.EntityType.PRODUCT,
+                productId.toString(),
+                null,
+                newStatus.name(),
+                notes,
+                ChangedByType.SYSTEM
+        ));
         log.info("Product {} transitioned to {}", productId, newStatus);
     }
 
@@ -53,14 +53,27 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
             case PASSED -> TrackStatus.VALIDATED;
         };
 
-        trackRepository.updateStatus(trackId, newStatus, null, ChangedByType.SYSTEM, null);
+        statusUpdatePublisher.publish(new StatusUpdateEvent(
+                StatusUpdateEvent.EntityType.TRACK,
+                trackId.toString(),
+                productId.toString(),
+                newStatus.name(),
+                null,
+                ChangedByType.SYSTEM
+        ));
         log.info("Track {} transitioned to {}", trackId, newStatus);
     }
 
     @Override
     public void onAllTracksValidated(UUID productId) {
-        productRepository.updateStatus(productId, ProductStatus.VALIDATED,
-                null, ChangedByType.SYSTEM, null);
+        statusUpdatePublisher.publish(new StatusUpdateEvent(
+                StatusUpdateEvent.EntityType.PRODUCT,
+                productId.toString(),
+                null,
+                ProductStatus.VALIDATED.name(),
+                null,
+                ChangedByType.SYSTEM
+        ));
         log.info("Product {} fully validated -- all tracks passed", productId);
     }
 }

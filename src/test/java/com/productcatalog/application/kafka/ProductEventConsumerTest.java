@@ -45,7 +45,7 @@ class ProductEventConsumerTest {
     }
 
     @Test
-    void shouldCallOrchestrationServiceWhenStatusIsSubmittedAndOpIsCreate() {
+    void shouldCallOrchestrationServiceWhenStatusIsSubmittedAndOpIsCreate() throws Exception {
         when(ruleEngine.evaluateProduct(any())).thenReturn(ValidationOutcome.PASSED);
 
         consumer.consume(productEvent("SUBMITTED", "c"), "catalog.music_catalog.products");
@@ -55,7 +55,7 @@ class ProductEventConsumerTest {
     }
 
     @Test
-    void shouldCallOrchestrationServiceWhenStatusIsResubmitted() {
+    void shouldCallOrchestrationServiceWhenStatusIsResubmitted() throws Exception {
         when(ruleEngine.evaluateProduct(any())).thenReturn(ValidationOutcome.PASSED);
 
         consumer.consume(productEvent("RESUBMITTED", "u"), "catalog.music_catalog.products");
@@ -65,21 +65,21 @@ class ProductEventConsumerTest {
     }
 
     @Test
-    void shouldSkipEventWhenOpIsDelete() {
+    void shouldSkipEventWhenOpIsDelete() throws Exception {
         consumer.consume(productEvent("SUBMITTED", "d"), "catalog.music_catalog.products");
 
         verify(orchestrationService, never()).onProductEvaluated(any(), any());
     }
 
     @Test
-    void shouldSkipEventWhenStatusIsNotSubmittedOrResubmitted() {
+    void shouldSkipEventWhenStatusIsNotSubmittedOrResubmitted() throws Exception {
         consumer.consume(productEvent("AWAITING_TRACK_VALIDATION", "u"), "catalog.music_catalog.products");
 
         verify(orchestrationService, never()).onProductEvaluated(any(), any());
     }
 
     @Test
-    void shouldSkipEventWhenPayloadAfterIsNull() {
+    void shouldSkipEventWhenPayloadAfterIsNull() throws Exception {
         String message = """
                 {"payload":{"op":"c","after":null}}
                 """;
@@ -90,7 +90,7 @@ class ProductEventConsumerTest {
     }
 
     @Test
-    void shouldSkipEventWhenPayloadIsNull() {
+    void shouldSkipEventWhenPayloadIsNull() throws Exception {
         String message = """
                 {"payload":null}
                 """;

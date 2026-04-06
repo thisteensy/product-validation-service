@@ -4,11 +4,12 @@ A take-home assignment for FUGA's Java Engineer position on the QC team. The bri
 
 ## What I built
 
-A Spring Boot service with two main responsibilities: a REST API supporting full CRUD operations on music products and tracks, and an event-driven validation pipeline that processes submissions asynchronously via Kafka.
+A Spring Boot service with two main responsibilities: a REST API supporting full CRUD operations on music products (parent object: album, EP, single) and tracks, and an event-driven validation pipeline that processes submissions asynchronously via Kafka.
 
-Product-level validation and track validation run concurrently. A product waits in `AWAITING_TRACK_VALIDATION` until all its tracks pass, only then does it move to `VALIDATED` and become eligible for DSP delivery.
+Product-level validation and track validation run concurrently. After the product passes validation it waits in `AWAITING_TRACK_VALIDATION` until all its tracks pass, only then does it move to `VALIDATED` and become eligible for DSP delivery.
 
 ## Architecture
+See GitHub for diagram.
 ```mermaid
 ---
 config:
@@ -97,11 +98,11 @@ flowchart LR
 
 **Parse, don't validate**
 
-The mappers (`ProductEventMapper`, `TrackEventMapper`, `ProductMapper`) don't just copy fields, they normalize and sanitize as they parse. Stripping whitespace, lowercasing language codes, uppercasing ISRCs, converting tinyint to boolean. By the time a `Product` or `Track` reaches the domain it's already in a valid, normalized form. This is informed by Alexis King's "Parse, Don't Validate" principle, the idea that parsing and validation should happen at the boundary so the domain only ever sees well-formed data. Java's type system can't enforce this at compile time the way Haskell or Rust can, but the mappers act as that boundary by convention.
+The mappers (`ProductEventMapper`, `TrackEventMapper`, `ProductMapper`) normalize and sanitize as they parse. Stripping whitespace, lowercasing language codes, uppercasing ISRCs, converting tinyint to boolean. By the time a `Product` or `Track` reaches the domain it's already in a valid, normalized form. This is informed by Alexis King's "Parse, Don't Validate" principle, the idea that parsing and validation should happen at the boundary so the domain only ever sees well-formed data. Java's type system can't enforce this at compile time the way Haskell or Rust can, but the mappers act as that boundary by convention.
 
 **Debezium for change capture**
 
-Rather than publishing events explicitly from the application, I used Debezium to capture changes from MariaDB's binary log. This means the database is the source of truth and events flow from it naturally, there's no risk of a write succeeding while the event publish fails. I've worked with this pattern before and it's one I trust.
+Rather than publishing events explicitly from the application, I used Debezium to capture changes from MariaDB's binary log. This means the database is the source of truth and events flow from it naturally, there's no risk of a write succeeding while the event publish fails.
 
 **Keeping business logic out of the consumers**
 
@@ -116,10 +117,6 @@ The domain only knows about `ValidationOutcome`, it never sees `RuleResult` or `
 The tricky part of this problem is knowing when all tracks for a product have finished validating. My first instinct was to query MariaDB on every track event, but that gets chatty at scale. Instead I built a Kafka Streams topology that merges the product and track event streams into a KTable keyed by product ID. The KTable holds the current validation state of each in-flight submission, and when it detects all tracks are validated it triggers the rollup. It's using a "collect-persist-evict" pattern.
 
 The Kafka Streams app lives in the same service as everything else. I wouldn't do that in production, it should be a separate stateful deployment with persistent RocksDB volumes, but for this submission it keeps things self-contained and I've called it out clearly.
-
-**Product-level validation doesn't check for tracks**
-
-The product validation consumer receives a Debezium CDC event containing only the columns of the `products` table. Tracks live in a separate table and aren't included. When the mapper reconstructs a `Product` from the CDC event, the track list is always null, so any rule checking track existence would always fail regardless of whether tracks were actually submitted. Track existence is already enforced at the API boundary, so the rule is redundant and was removed.
 
 ## Running locally
 
@@ -246,6 +243,8 @@ A DLQ monitor would also be a first priority, alerting via a Slack webhook whene
 **Add Reviewer Controller** For the validation flow I would assume there would be a manual review flow. It is stubbed in this project.
 
 **Track status history** Track transitions are not recorded; would follow the same pattern as product status history with a `track_status_history` table
+
+**Topics as infrastructure** I would not allow the creation of topics and schemas to happen on the fly. I would use an IaC tool like Terraform, Ansible or GitOps to create them for resilience, consistency and to prevent accidental resource sprawl.
 
 **Kubernetes deployment** The validation pipeline has two distinct operational profiles that would drive the Kubernetes deployment strategy. The product API is stateless and scales horizontally with a standard `Deployment`. The Kafka Streams topology is stateful, it maintains a RocksDB state store that needs to survive pod restarts. That means a `StatefulSet` with a persistent volume claim per replica, careful partition assignment so each replica owns a consistent subset of partitions, and a readiness probe backed by the custom `KafkaStreamsHealthIndicator` so traffic only routes to pods whose topology is in `RUNNING` state. The Debezium connector registration, currently handled by `init.sh`, would move to a Kubernetes `Job` that runs after Kafka Connect is healthy, using an init container or a readiness gate to sequence the startup correctly.
 

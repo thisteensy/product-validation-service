@@ -41,41 +41,35 @@ public class TrackValidationConsumer {
 
     @KafkaListener(topics = "catalog.music_catalog.tracks", groupId = "track-validation")
     public void consume(@Payload String message,
-                        @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
-        try {
-            TrackEventDto event = trackEventMapper.toDto(message);
+                        @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) throws Exception {
+        TrackEventDto event = trackEventMapper.toDto(message);
 
-            if (event.getPayload() == null || event.getPayload().getAfter() == null) {
-                log.debug("Skipping track event with no after state -- likely a delete");
-                return;
-            }
-
-            String op = event.getPayload().getOp();
-            if (!"c".equals(op) && !"u".equals(op)) {
-                log.debug("Skipping track event with op={}", op);
-                return;
-            }
-
-            String status = event.getPayload().getAfter().getStatus();
-            if (!TrackStatus.PENDING.name().equals(status)) {
-                log.debug("Skipping track event with status={} -- only processing PENDING", status);
-                return;
-            }
-
-            UUID trackId = UUID.fromString(event.getPayload().getAfter().getId());
-            UUID productId = UUID.fromString(event.getPayload().getAfter().getProductId());
-
-            List<String> dspTargets = productRepository.findById(productId)
-                    .map(p -> p.getDspTargets())
-                    .orElse(List.of());
-
-            Track track = trackEventMapper.toTrackFromTrackRow(event.getPayload().getAfter());
-            ValidationOutcome outcome = ruleEngine.evaluateTrack(track, dspTargets);
-            orchestrationService.onTrackEvaluated(trackId, productId, outcome);
-
-        } catch (Exception e) {
-            log.error("Failed to process track event -- routing to DLQ", e);
-            throw new RuntimeException(e);
+        if (event.getPayload() == null || event.getPayload().getAfter() == null) {
+            log.debug("Skipping track event with no after state -- likely a delete");
+            return;
         }
+
+        String op = event.getPayload().getOp();
+        if (!"c".equals(op) && !"u".equals(op)) {
+            log.debug("Skipping track event with op={}", op);
+            return;
+        }
+
+        String status = event.getPayload().getAfter().getStatus();
+        if (!TrackStatus.PENDING.name().equals(status)) {
+            log.debug("Skipping track event with status={} -- only processing PENDING", status);
+            return;
+        }
+
+        UUID trackId = UUID.fromString(event.getPayload().getAfter().getId());
+        UUID productId = UUID.fromString(event.getPayload().getAfter().getProductId());
+
+        List<String> dspTargets = productRepository.findById(productId)
+                .map(p -> p.getDspTargets())
+                .orElse(List.of());
+
+        Track track = trackEventMapper.toTrackFromTrackRow(event.getPayload().getAfter());
+        ValidationOutcome outcome = ruleEngine.evaluateTrack(track, dspTargets);
+        orchestrationService.onTrackEvaluated(trackId, productId, outcome);
     }
 }
