@@ -10,6 +10,7 @@ import com.productcatalog.infrastructure.persistence.entities.ProductEntity;
 import com.productcatalog.infrastructure.persistence.entities.TrackEntity;
 import com.productcatalog.infrastructure.persistence.ports.ProductJpaRepository;
 import com.productcatalog.infrastructure.persistence.ports.TrackJpaRepository;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,8 +50,12 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
-    public List<Product> findByStatus(ProductStatus status) {
-        return jpaRepository.findByStatus(status.name()).stream()
+    public List<Product> findByFilters(String artist, String label, String genre, String status) {
+        Specification<ProductEntity> spec = ProductSpecifications.hasArtist(artist)
+                .and(ProductSpecifications.hasLabel(label))
+                .and(ProductSpecifications.hasGenre(genre))
+                .and(ProductSpecifications.hasStatus(status));
+        return jpaRepository.findAll(spec).stream()
                 .map(this::toDomain)
                 .toList();
     }

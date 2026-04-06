@@ -58,18 +58,17 @@ public class ProductController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Get all products")
-    @ApiResponse(responseCode = "200", description = "List of all products")
+    @Operation(summary = "Get all products, optionally filtered by artist, label, genre, or status")
+    @ApiResponse(responseCode = "200", description = "List of products")
     @GetMapping
-    public ResponseEntity<List<Product>> getAll() {
-        return ResponseEntity.ok(productRepository.findAll());
+    public ResponseEntity<List<Product>> getAll(
+            @RequestParam(required = false) String artist,
+            @RequestParam(required = false) String label,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(productRepository.findByFilters(artist, label, genre, status));
     }
 
-    @Operation(summary = "Delete a product")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Product deleted"),
-            @ApiResponse(responseCode = "404", description = "Product not found")
-    })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         if (productRepository.findById(id).isEmpty()) {

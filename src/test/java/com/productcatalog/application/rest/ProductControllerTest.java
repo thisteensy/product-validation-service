@@ -92,6 +92,64 @@ class ProductControllerTest {
     }
 
     @Test
+    void shouldReturnAllProductsWhenNoFiltersProvided() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findByFilters(null, null, null, null))
+                .thenReturn(List.of(product));
+
+        mockMvc.perform(get("/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
+    }
+
+    @Test
+    void shouldFilterByArtist() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findByFilters("Michael Jackson", null, null, null))
+                .thenReturn(List.of(product));
+
+        mockMvc.perform(get("/products").param("artist", "Michael Jackson"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
+    }
+
+    @Test
+    void shouldFilterByLabel() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findByFilters(null, "Epic Records", null, null))
+                .thenReturn(List.of(product));
+
+        mockMvc.perform(get("/products").param("label", "Epic Records"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
+    }
+
+    @Test
+    void shouldFilterByStatus() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findByFilters(null, null, null, "SUBMITTED"))
+                .thenReturn(List.of(product));
+
+        mockMvc.perform(get("/products").param("status", "SUBMITTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
+    }
+
+    @Test
+    void shouldFilterByCombinedParams() throws Exception {
+        Product product = ValidationBuilders.validProduct();
+        when(productRepository.findByFilters("Michael Jackson", "Epic Records", null, "SUBMITTED"))
+                .thenReturn(List.of(product));
+
+        mockMvc.perform(get("/products")
+                        .param("artist", "Michael Jackson")
+                        .param("label", "Epic Records")
+                        .param("status", "SUBMITTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(product.getId().toString()));
+    }
+
+    @Test
     void shouldReturnProductWhenIdExists() throws Exception {
         Product product = ValidationBuilders.validProduct();
         when(productRepository.findById(product.getId()))
