@@ -69,6 +69,7 @@ public class TrackRepositoryImpl implements TrackRepository {
         }
     }
     @Override
+    @Transactional
     public List<CatalogSearchResult> searchCatalog(String artist, String label, String genre,
                                                    String title, String isrc, String status) {
         Specification<TrackEntity> spec = CatalogSearchSpecification.hasArtist(artist)
