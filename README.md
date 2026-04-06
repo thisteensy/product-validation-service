@@ -214,6 +214,8 @@ The same API could back a real-time state visualization, a live view of in-fligh
 
 **Authentication and authorization** Currently any caller can submit, update, or delete any product. In production, the API would sit behind an identity provider like Okta. Labels would authenticate via OAuth2 and their token would scope them to their own catalog, a label can only read and modify their own products. The `changed_by_id` field on status history is already nullable and waiting for this, once authentication is in place, the authenticated label account ID would populate that field on every resubmission, giving a full audit trail of who changed what and when.
 
+**End-to-end integration tests** a test that submits a product via the REST API and asserts the final validation status in the database, covering the full pipeline including Debezium CDC, validation consumers, and status update routing.
+
 ### Safety Checks
 
 **Add a clean intermediate topic between Debezium and the consumers.** Right now the consumers parse the Debezium envelope directly. If we ever change CDC tooling, the consumers break. A thin translator producing to a stable domain event topic would decouple the two concerns properly.
