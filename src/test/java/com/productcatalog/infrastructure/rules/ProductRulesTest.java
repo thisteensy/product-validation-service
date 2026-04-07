@@ -1,7 +1,6 @@
 package com.productcatalog.infrastructure.rules;
 
 import com.productcatalog.domain.model.Product;
-import com.productcatalog.infrastructure.rules.dsp.DspOrchestrator;
 import com.productcatalog.infrastructure.rules.universal.ProductRules;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,21 +13,14 @@ import java.util.List;
 
 import static com.productcatalog.ValidationBuilders.validProduct;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class ProductRulesTest {
-
-    @Mock
-    private DspOrchestrator dspOrchestrator;
 
     private ProductRules productRules;
 
     @BeforeEach
     void setUp() {
-        when(dspOrchestrator.evaluateProduct(any())).thenReturn(List.of());
-        productRules = new ProductRules(dspOrchestrator);
+        productRules = new ProductRules();
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.productcatalog.infrastructure.rules;
 
 import com.productcatalog.domain.model.ValidationOutcome;
+import com.productcatalog.domain.model.ValidationResult;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -14,13 +15,18 @@ public class RuleResult {
     private final RuleSeverity severity;
     private final String message;
 
-    public static ValidationOutcome resolve(List<RuleResult> results) {
+    public static ValidationResult resolve(List<RuleResult> results) {
+        List<String> violations = results.stream()
+                .filter(r -> r.getSeverity() != RuleSeverity.PASS)
+                .map(RuleResult::getMessage)
+                .toList();
+
         if (results.stream().anyMatch(r -> r.getSeverity() == RuleSeverity.BLOCKING)) {
-            return ValidationOutcome.FAILED;
+            return new ValidationResult(ValidationOutcome.FAILED, violations);
         }
         if (results.stream().anyMatch(r -> r.getSeverity() == RuleSeverity.WARNING)) {
-            return ValidationOutcome.NEEDS_REVIEW;
+            return new ValidationResult(ValidationOutcome.NEEDS_REVIEW, violations);
         }
-        return ValidationOutcome.PASSED;
+        return new ValidationResult(ValidationOutcome.PASSED, violations);
     }
 }

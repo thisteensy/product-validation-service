@@ -230,6 +230,8 @@ The same API could back a real-time state visualization, a live view of in-fligh
 
 **Expose status history via API** `GET /products/{id}/history` would return the full audit trail of status transitions for a product, including actor type, identity, timestamp, and notes. The `product_status_history` table already captures this data, it just isn't exposed yet.
 
+**Move RuleResult into domain** It is strictly speaking making a decision that belongs 
+
 ### Safety Checks
 
 **Add a clean intermediate topic between Debezium and the consumers.** Right now the consumers parse the Debezium envelope directly. If we ever change CDC tooling, the consumers break. A thin translator producing to a stable domain event topic would decouple the two concerns properly.

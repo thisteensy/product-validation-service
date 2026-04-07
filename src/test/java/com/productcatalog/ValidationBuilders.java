@@ -5,8 +5,6 @@ import com.productcatalog.application.kafka.dtos.TrackEventDto;
 import com.productcatalog.application.rest.dtos.ProductResponseDto;
 import com.productcatalog.application.rest.params.ProductParams;
 import com.productcatalog.domain.model.*;
-import com.productcatalog.infrastructure.rules.RuleResult;
-import com.productcatalog.infrastructure.rules.RuleSeverity;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -143,5 +141,17 @@ public class ValidationBuilders {
                 "pop",
                 ProductStatus.VALIDATED
         );
+    }
+
+    public static ValidationResult validationPassed() {
+        return new ValidationResult(ValidationOutcome.PASSED, List.of());
+    }
+
+    public static ValidationResult validationFailed(String... violations) {
+        return new ValidationResult(ValidationOutcome.FAILED, List.of(violations));
+    }
+
+    public static ValidationResult validationNeedsReview(String... violations) {
+        return new ValidationResult(ValidationOutcome.NEEDS_REVIEW, List.of(violations));
     }
 }

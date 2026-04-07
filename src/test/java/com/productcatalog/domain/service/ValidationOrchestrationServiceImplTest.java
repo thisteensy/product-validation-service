@@ -43,7 +43,7 @@ class ValidationOrchestrationServiceImplTest {
     @Test
     void shouldSubmitProductAndEvaluate() {
         Product product = ValidationBuilders.validProduct();
-        when(ruleEngine.evaluateProduct(product)).thenReturn(ValidationOutcome.PASSED);
+        when(ruleEngine.evaluateProduct(product)).thenReturn(ValidationBuilders.validationPassed());
 
         service.submitProduct(product);
 
@@ -58,7 +58,7 @@ class ValidationOrchestrationServiceImplTest {
         Track track = ValidationBuilders.validTrack();
         UUID productId = UUID.randomUUID();
         when(validationStateStore.getDspTargets(productId)).thenReturn(List.of("SPOTIFY"));
-        when(ruleEngine.evaluateTrack(track, List.of("SPOTIFY"))).thenReturn(ValidationOutcome.PASSED);
+        when(ruleEngine.evaluateTrack(track, List.of("SPOTIFY"))).thenReturn(ValidationBuilders.validationPassed());
 
         service.submitTrack(track, productId);
 
@@ -72,33 +72,33 @@ class ValidationOrchestrationServiceImplTest {
     void shouldPublishValidationFailedWhenOutcomeIsFailed() {
         UUID productId = UUID.randomUUID();
 
-        service.onProductEvaluated(productId, ValidationOutcome.FAILED);
+        service.onProductEvaluated(productId, ValidationOutcome.FAILED, List.of("Artwork is missing"));
 
         ArgumentCaptor<StatusUpdateEvent> captor = ArgumentCaptor.forClass(StatusUpdateEvent.class);
         verify(statusUpdatePublisher).publish(captor.capture());
         assertThat(captor.getValue().getEntityType()).isEqualTo(StatusUpdateEvent.EntityType.PRODUCT);
         assertThat(captor.getValue().getEntityId()).isEqualTo(productId.toString());
         assertThat(captor.getValue().getStatus()).isEqualTo(ProductStatus.VALIDATION_FAILED.name());
-        assertThat(captor.getValue().getNotes()).isEqualTo("Product-level validation failed");
+        assertThat(captor.getValue().getNotes()).isEqualTo("Artwork is missing");
     }
 
     @Test
     void shouldPublishNeedsReviewWhenOutcomeIsNeedsReview() {
         UUID productId = UUID.randomUUID();
 
-        service.onProductEvaluated(productId, ValidationOutcome.NEEDS_REVIEW);
+        service.onProductEvaluated(productId, ValidationOutcome.NEEDS_REVIEW, List.of("Release date is in the past."));
 
         ArgumentCaptor<StatusUpdateEvent> captor = ArgumentCaptor.forClass(StatusUpdateEvent.class);
         verify(statusUpdatePublisher).publish(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ProductStatus.NEEDS_REVIEW.name());
-        assertThat(captor.getValue().getNotes()).isEqualTo("Needs manual review");
+        assertThat(captor.getValue().getNotes()).isEqualTo("Release date is in the past.");
     }
 
     @Test
     void shouldPublishAwaitingTrackValidationWhenOutcomeIsPassed() {
         UUID productId = UUID.randomUUID();
 
-        service.onProductEvaluated(productId, ValidationOutcome.PASSED);
+        service.onProductEvaluated(productId, ValidationOutcome.PASSED, List.of());
 
         ArgumentCaptor<StatusUpdateEvent> captor = ArgumentCaptor.forClass(StatusUpdateEvent.class);
         verify(statusUpdatePublisher).publish(captor.capture());
@@ -110,7 +110,7 @@ class ValidationOrchestrationServiceImplTest {
         UUID trackId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
 
-        service.onTrackEvaluated(trackId, productId, ValidationOutcome.FAILED);
+        service.onTrackEvaluated(trackId, productId, ValidationOutcome.FAILED, List.of());
 
         ArgumentCaptor<StatusUpdateEvent> captor = ArgumentCaptor.forClass(StatusUpdateEvent.class);
         verify(statusUpdatePublisher).publish(captor.capture());
@@ -124,7 +124,7 @@ class ValidationOrchestrationServiceImplTest {
         UUID trackId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
 
-        service.onTrackEvaluated(trackId, productId, ValidationOutcome.NEEDS_REVIEW);
+        service.onTrackEvaluated(trackId, productId, ValidationOutcome.NEEDS_REVIEW, List.of());
 
         ArgumentCaptor<StatusUpdateEvent> captor = ArgumentCaptor.forClass(StatusUpdateEvent.class);
         verify(statusUpdatePublisher).publish(captor.capture());

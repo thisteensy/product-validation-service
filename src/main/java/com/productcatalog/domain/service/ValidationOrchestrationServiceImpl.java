@@ -31,30 +31,26 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
 
     @Override
     public void submitProduct(Product product) {
-        ValidationOutcome outcome = ruleEngine.evaluateProduct(product);
-        onProductEvaluated(product.getId(), outcome);
+        ValidationResult result = ruleEngine.evaluateProduct(product);
+        onProductEvaluated(product.getId(), result.outcome(), result.violations());
     }
 
     @Override
     public void submitTrack(Track track, UUID productId) {
         List<String> dspTargets = validationStateStore.getDspTargets(productId);
-        ValidationOutcome outcome = ruleEngine.evaluateTrack(track, dspTargets);
-        onTrackEvaluated(track.getId(), productId, outcome);
+        ValidationResult result = ruleEngine.evaluateTrack(track, dspTargets);
+        onTrackEvaluated(track.getId(), productId, result.outcome(), result.violations());
     }
 
     @Override
-    public void onProductEvaluated(UUID productId, ValidationOutcome outcome) {
+    public void onProductEvaluated(UUID productId, ValidationOutcome outcome, List<String> violations) {
         ProductStatus newStatus = switch (outcome) {
             case FAILED -> ProductStatus.VALIDATION_FAILED;
             case NEEDS_REVIEW -> ProductStatus.NEEDS_REVIEW;
             case PASSED -> ProductStatus.AWAITING_TRACK_VALIDATION;
         };
 
-        String notes = switch (outcome) {
-            case FAILED -> "Product-level validation failed";
-            case NEEDS_REVIEW -> "Needs manual review";
-            case PASSED -> null;
-        };
+        String notes = violations.isEmpty() ? null : String.join(", ", violations);
 
         statusUpdatePublisher.publish(new StatusUpdateEvent(
                 StatusUpdateEvent.EntityType.PRODUCT,
@@ -68,7 +64,7 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
     }
 
     @Override
-    public void onTrackEvaluated(UUID trackId, UUID productId, ValidationOutcome outcome) {
+    public void onTrackEvaluated(UUID trackId, UUID productId, ValidationOutcome outcome, List<String> violations) {
         TrackStatus newStatus = switch (outcome) {
             case FAILED -> TrackStatus.VALIDATION_FAILED;
             case NEEDS_REVIEW -> TrackStatus.NEEDS_REVIEW;
@@ -80,7 +76,7 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
                 trackId.toString(),
                 productId.toString(),
                 newStatus.name(),
-                null,
+                violations.isEmpty() ? null : String.join(", ", violations),
                 ChangedByType.SYSTEM
         ));
         log.info("Track {} transitioned to {}", trackId, newStatus);

@@ -17,7 +17,7 @@ class RuleResultTest {
                 new RuleResult("IsrcRule", RuleSeverity.PASS, "ISRC valid")
         );
 
-        assertThat(RuleResult.resolve(results)).isEqualTo(ValidationOutcome.FAILED);
+        assertThat(RuleResult.resolve(results).outcome()).isEqualTo(ValidationOutcome.FAILED);
     }
 
     @Test
@@ -27,7 +27,7 @@ class RuleResultTest {
                 new RuleResult("ArtworkRule", RuleSeverity.WARNING, "Artwork missing")
         );
 
-        assertThat(RuleResult.resolve(results)).isEqualTo(ValidationOutcome.FAILED);
+        assertThat(RuleResult.resolve(results).outcome()).isEqualTo(ValidationOutcome.FAILED);
     }
 
     @Test
@@ -37,7 +37,7 @@ class RuleResultTest {
                 new RuleResult("IsrcRule", RuleSeverity.PASS, "ISRC valid")
         );
 
-        assertThat(RuleResult.resolve(results)).isEqualTo(ValidationOutcome.NEEDS_REVIEW);
+        assertThat(RuleResult.resolve(results).outcome()).isEqualTo(ValidationOutcome.NEEDS_REVIEW);
     }
 
     @Test
@@ -47,11 +47,11 @@ class RuleResultTest {
                 new RuleResult("IsrcRule", RuleSeverity.PASS, "ISRC valid")
         );
 
-        assertThat(RuleResult.resolve(results)).isEqualTo(ValidationOutcome.PASSED);
+        assertThat(RuleResult.resolve(results).outcome()).isEqualTo(ValidationOutcome.PASSED);
     }
 
     @Test
     void shouldReturnPassedWhenResultsListIsEmpty() {
-        assertThat(RuleResult.resolve(List.of())).isEqualTo(ValidationOutcome.PASSED);
+        assertThat(RuleResult.resolve(List.of()).outcome()).isEqualTo(ValidationOutcome.PASSED);
     }
 }

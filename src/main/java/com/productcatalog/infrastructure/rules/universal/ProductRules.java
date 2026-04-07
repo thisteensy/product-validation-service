@@ -2,7 +2,6 @@ package com.productcatalog.infrastructure.rules.universal;
 
 import com.productcatalog.domain.model.OwnershipSplit;
 import com.productcatalog.domain.model.Product;
-import com.productcatalog.infrastructure.rules.dsp.DspOrchestrator;
 import com.productcatalog.infrastructure.rules.RuleResult;
 import com.productcatalog.infrastructure.rules.RuleSeverity;
 import org.springframework.stereotype.Component;
@@ -20,12 +19,6 @@ public class ProductRules {
             "pop", "rock", "hip-hop", "jazz", "classical", "electronic",
             "r&b", "country", "folk", "metal", "reggae", "blues"
     );
-
-    private final DspOrchestrator dspOrchestrator;
-
-    public ProductRules(DspOrchestrator dspOrchestrator) {
-        this.dspOrchestrator = dspOrchestrator;
-    }
 
     public List<RuleResult> evaluate(Product product) {
         List<RuleResult> results = new ArrayList<>();
@@ -70,9 +63,6 @@ public class ProductRules {
             results.add(new RuleResult("OwnershipSplitRule", RuleSeverity.PASS,
                     "Ownership splits are valid"));
         }
-
-        // DSP-specific product rules
-        results.addAll(dspOrchestrator.evaluateProduct(product));
 
         return results;
     }
