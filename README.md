@@ -1,6 +1,6 @@
 # Product Catalog Service
 
-A take-home assignment for FUGA's Java Engineer position on the QC team. The brief asked for a backend service for a music product catalog.
+A take-home assignment for FUGA's Java Engineer position on the QC team. The brief asked for an event-driven backend service for a music product catalog.
 
 ## What I built
 
@@ -130,9 +130,9 @@ The domain only knows about `ValidationOutcome`, it never sees `RuleResult` or `
 
 **Kafka Streams KTable for submission state**
 
-The tricky part of this problem is knowing when all tracks for a product have finished validating. My first instinct was to query MariaDB on every track event, but that gets chatty at scale. Instead I built a Kafka Streams topology that merges the product and track event streams into a KTable keyed by product ID. The KTable holds the current validation state of each in-flight submission, and when it detects all tracks are validated it triggers the rollup. It's using a "collect-persist-evict" pattern.
+The tricky part of this problem is knowing when all tracks for a product have finished validating. My first instinct was to query MariaDB on every track event, but that gets chatty at scale. 
 
-The Kafka Streams app lives in the same service as everything else. I wouldn't do that in production, it should be a separate stateful deployment with persistent RocksDB volumes, but for this submission it keeps things self-contained and I've called it out clearly.
+Instead I built a Kafka Streams topology that merges the product and track event streams into a KTable keyed by product ID. The KTable holds the current validation state of each in-flight submission and passes state snapshots to the domain on every update. It is governed by a collect-persist-evict pattern, so it only holds the state of products that are currently in flight.
 
 **Status update routing through Kafka**
 
@@ -208,6 +208,8 @@ A DLQ monitor would also be a first priority, alerting via a Slack webhook whene
 **Schema governance** In production, topic schemas would be managed via a Schema Registry (Confluent or AWS Glue) with Avro or Protobuf serialization. This enforces compatibility contracts between producers and consumers and prevents breaking changes from silently corrupting the pipeline.
 
 **Topics, Schemas, Connectors and the Connect Cluster as infrastructure** I would not allow the creation of topics and schemas to happen on the fly. I would treat them as infrastructure. I would use an IaC tool such as Terraform or Ansible to create all infrastructure for resilience, consistency and to prevent accidental resource sprawl.
+
+**Catalog search as its own service** The search endpoint here is a basic database query. In production, catalog search would be a separate service backed by Elasticsearch or OpenSearch, with its own indexing pipeline. It's a different problem domain and doesn't belong in the same service.
 
 ### Features/Completeness
 
