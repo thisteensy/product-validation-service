@@ -1,6 +1,7 @@
 package com.productcatalog.domain.service;
 
 import com.productcatalog.domain.model.*;
+import com.productcatalog.domain.ports.in.ValidationStatePort;
 import com.productcatalog.domain.ports.out.RuleEngine;
 import com.productcatalog.domain.ports.out.StatusUpdatePublisher;
 import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
@@ -10,10 +11,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
-public class ValidationOrchestrationServiceImpl implements ValidationOrchestrationService {
+public class ValidationOrchestrationServiceImpl implements ValidationOrchestrationService, ValidationStatePort {
 
     private static final Logger log = LoggerFactory.getLogger(ValidationOrchestrationServiceImpl.class);
 
@@ -95,5 +97,18 @@ public class ValidationOrchestrationServiceImpl implements ValidationOrchestrati
                 ChangedByType.SYSTEM
         ));
         log.info("Product {} fully validated -- all tracks passed", productId);
+    }
+
+    @Override
+    public boolean onValidationStateUpdated(UUID productId, String productStatus, Map<UUID, String> trackStatuses) {
+        boolean awaitingTracks = ProductStatus.AWAITING_TRACK_VALIDATION.name().equals(productStatus);
+        boolean allValidated = !trackStatuses.isEmpty() &&
+                trackStatuses.values().stream().allMatch(s -> TrackStatus.VALIDATED.name().equals(s));
+
+        if (awaitingTracks && allValidated) {
+            onAllTracksValidated(productId);
+            return true;
+        }
+        return false;
     }
 }

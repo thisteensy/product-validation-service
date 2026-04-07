@@ -5,10 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Data
 @NoArgsConstructor
@@ -16,7 +13,7 @@ import java.util.Map;
 public class ProductValidationState {
 
     private String productStatus;
-    private Map<String, String> trackStatuses = new HashMap<>();
+    private Map<UUID, String> trackStatuses = new HashMap<>();
     private List<String> dspTargets = new ArrayList<>();
 
     @JsonIgnore

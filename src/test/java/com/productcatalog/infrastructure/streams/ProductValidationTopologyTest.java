@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.productcatalog.application.kafka.mappers.ProductEventMapper;
 import com.productcatalog.application.kafka.mappers.TrackEventMapper;
 import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
+import com.productcatalog.domain.ports.in.ValidationStatePort;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.TestInputTopic;
@@ -19,15 +20,14 @@ import org.springframework.kafka.core.KafkaTemplate;
 import java.util.Properties;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProductValidationTopologyTest {
 
     @Mock
-    private ValidationOrchestrationService orchestrationService;
+    private ValidationStatePort validationStatePort;
 
     @Mock
     private KafkaTemplate<String, String> kafkaTemplate;
@@ -48,7 +48,7 @@ class ProductValidationTopologyTest {
         ValidationEventSerde eventSerde = new ValidationEventSerde(objectMapper);
 
         ProductValidationTopology topology = new ProductValidationTopology(
-                productEventMapper, trackEventMapper, stateSerde, eventSerde, orchestrationService, kafkaTemplate);
+                productEventMapper, trackEventMapper, validationStatePort, stateSerde, eventSerde, kafkaTemplate);
 
         StreamsBuilder builder = new StreamsBuilder();
         topology.productValidationStateTable(builder);
@@ -93,15 +93,18 @@ class ProductValidationTopologyTest {
         productTopic.pipeInput(PRODUCT_ID, productEvent(PRODUCT_ID, "AWAITING_TRACK_VALIDATION"));
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "VALIDATED"));
 
-        verify(orchestrationService).onAllTracksValidated(UUID.fromString(PRODUCT_ID));
-    }
+        verify(validationStatePort).onValidationStateUpdated(
+                eq(UUID.fromString(PRODUCT_ID)),
+                eq("AWAITING_TRACK_VALIDATION"),
+                argThat(map -> map.containsValue("VALIDATED"))
+        );    }
 
     @Test
     void shouldNotTriggerRollupWhenProductAwaitingButTrackStillPending() {
         productTopic.pipeInput(PRODUCT_ID, productEvent(PRODUCT_ID, "AWAITING_TRACK_VALIDATION"));
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "PENDING"));
 
-        verify(orchestrationService, never()).onAllTracksValidated(any());
+        verify(validationStatePort, atLeastOnce()).onValidationStateUpdated(any(), any(), any());
     }
 
     @Test
@@ -109,14 +112,13 @@ class ProductValidationTopologyTest {
         productTopic.pipeInput(PRODUCT_ID, productEvent(PRODUCT_ID, "SUBMITTED"));
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "VALIDATED"));
 
-        verify(orchestrationService, never()).onAllTracksValidated(any());
-    }
+        verify(validationStatePort, atLeastOnce()).onValidationStateUpdated(any(), any(), any());    }
 
     @Test
     void shouldNotTriggerRollupWhenNoProductEventReceived() {
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "VALIDATED"));
 
-        verify(orchestrationService, never()).onAllTracksValidated(any());
+        verify(validationStatePort, atLeastOnce()).onValidationStateUpdated(any(), any(), any());
     }
 
     @Test
@@ -124,14 +126,13 @@ class ProductValidationTopologyTest {
         productTopic.pipeInput(PRODUCT_ID, "not valid json");
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "VALIDATED"));
 
-        verify(orchestrationService, never()).onAllTracksValidated(any());
+        verify(validationStatePort, atLeastOnce()).onValidationStateUpdated(any(), any(), any());
     }
-
     @Test
-    void shouldNotTriggerRollupWhenProductValidationFailed() {
+    void shouldNotTriggerRollupWhenProductValidationFailed () {
         productTopic.pipeInput(PRODUCT_ID, productEvent(PRODUCT_ID, "VALIDATION_FAILED"));
         trackTopic.pipeInput(PRODUCT_ID, trackEvent(TRACK_ID, PRODUCT_ID, "VALIDATED"));
 
-        verify(orchestrationService, never()).onAllTracksValidated(any());
+        verify(validationStatePort, atLeastOnce()).onValidationStateUpdated(any(), any(), any());
     }
 }

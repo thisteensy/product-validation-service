@@ -4,7 +4,7 @@ import com.productcatalog.application.kafka.dtos.ProductEventDto;
 import com.productcatalog.application.kafka.mappers.ProductEventMapper;
 import com.productcatalog.application.kafka.dtos.TrackEventDto;
 import com.productcatalog.application.kafka.mappers.TrackEventMapper;
-import com.productcatalog.domain.ports.in.ValidationOrchestrationService;
+import com.productcatalog.domain.ports.in.ValidationStatePort;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.*;
@@ -28,22 +28,22 @@ public class ProductValidationTopology {
 
     private final ProductEventMapper productEventMapper;
     private final TrackEventMapper trackEventMapper;
+    private final ValidationStatePort validationStatePort;
     private final ProductValidationStateSerde stateSerde;
     private final ValidationEventSerde eventSerde;
-    private final ValidationOrchestrationService orchestrationService;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     public ProductValidationTopology(ProductEventMapper productEventMapper,
                                      TrackEventMapper trackEventMapper,
+                                     ValidationStatePort validationStatePort,
                                      ProductValidationStateSerde stateSerde,
                                      ValidationEventSerde eventSerde,
-                                     ValidationOrchestrationService orchestrationService,
                                      KafkaTemplate<String, String> kafkaTemplate) {
         this.productEventMapper = productEventMapper;
         this.trackEventMapper = trackEventMapper;
+        this.validationStatePort = validationStatePort;
         this.stateSerde = stateSerde;
         this.eventSerde = eventSerde;
-        this.orchestrationService = orchestrationService;
         this.kafkaTemplate = kafkaTemplate;
     }
 
@@ -119,7 +119,7 @@ public class ProductValidationTopology {
                                     state.setDspTargets(event.getDspTargets());
                                 }
                             } else {
-                                state.getTrackStatuses().put(event.getTrackId(), event.getStatus());
+                                state.getTrackStatuses().put(UUID.fromString(event.getTrackId()), event.getStatus());
                             }
                             return state;
                         },
@@ -132,18 +132,17 @@ public class ProductValidationTopology {
             if (state == null) {
                 return;
             }
-            if (!state.isAwaitingTrackValidation()) {
-                return;
-            }
-            if (!state.allTracksValidated()) {
-                return;
-            }
 
-            log.info("All tracks validated for product {} -- triggering rollup", productId);
-            orchestrationService.onAllTracksValidated(UUID.fromString(productId));
+            boolean completed = validationStatePort.onValidationStateUpdated(
+                    UUID.fromString(productId),
+                    state.getProductStatus(),
+                    state.getTrackStatuses()
+            );
 
-            log.info("Evicting product {} from validation state store", productId);
-            kafkaTemplate.send("product-validation-streams-product-validation-state-repartition", productId, null);
+            if (completed) {
+                log.info("Evicting product {} from validation state store", productId);
+                kafkaTemplate.send("product-validation-streams-product-validation-state-repartition", productId, null);
+            }
         });
 
         return stateTable;
